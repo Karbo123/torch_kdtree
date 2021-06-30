@@ -187,7 +187,7 @@ endif
 # Target rules
 all: build
 
-build: kdTreeGPUsms
+build: kdTreeGPUsms torchkdtree.so
 
 check.deps:
 ifeq ($(SAMPLE_ENABLED),0)
@@ -195,6 +195,8 @@ ifeq ($(SAMPLE_ENABLED),0)
 else
 	@echo "Sample is ready - all dependencies have been met"
 endif
+
+############
 
 obj/buildKdTree.o:src/buildKdTree.cu src/buildKdTree_common.h 
 	$(EXEC) $(NVCC) $(INCLUDES) $(ALL_CCFLAGS) $(GENCODE_FLAGS) -o $@ -c $<
@@ -211,16 +213,23 @@ obj/mergeSort.o:src/mergeSort.cu src/mergeSort_common.h src/KdNode.h
 obj/removeDups.o:src/removeDups.cu src/removeDups_common.h
 	$(EXEC) $(NVCC) $(INCLUDES) $(ALL_CCFLAGS) $(GENCODE_FLAGS) -o $@ -c $<
 
+obj/torch_kdtree.o:obj/removeDups.o obj/KdTreeGPUsms.o obj/Gpu.o obj/mergeSort.o obj/buildKdTree.o
+	$(EXEC) $(NVCC) $(INCLUDES) $(ALL_CCFLAGS) $(GENCODE_FLAGS) -o $@ -lib $^
+
+############
+
 kdTreeGPUsms: obj/removeDups.o obj/KdTreeGPUsms.o obj/Gpu.o obj/mergeSort.o obj/buildKdTree.o
 	$(EXEC) $(NVCC) $(ALL_LDFLAGS) $(GENCODE_FLAGS) -o $@ $+ $(LIBRARIES)
-#	$(EXEC) mkdir -p ../../bin/$(OS_ARCH)/$(OSLOWER)/$(TARGET)$(if $(abi),/$(abi))
-#	$(EXEC) cp $@ ../../bin/$(OS_ARCH)/$(OSLOWER)/$(TARGET)$(if $(abi),/$(abi))
+
+torchkdtree.so: obj/torch_kdtree.o
+
+############
 
 run: build
 	$(EXEC) ./kdTreeGPUsms
 
 clean:
 	rm -f obj/removeDups.o obj/KdTreeGPUsms.o obj/Gpu.o obj/mergeSort.o obj/buildKdTree.o kdTreeGPUsms
-#	rm -rf ../../bin/$(OS_ARCH)/$(OSLOWER)/$(TARGET)$(if $(abi),/$(abi))/mergeSort
+	rm -f obj/torch_kdtree.o torchkdtree.so
 
 clobber: clean
