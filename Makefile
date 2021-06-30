@@ -34,7 +34,7 @@
 ################################################################################
 
 # Location of the CUDA Toolkit
-CUDA_PATH       ?= /usr/local/cuda-11.1
+CUDA_PATH       ?= /data/lab-lei.jiabao/cu102
 
 OSUPPER = $(shell uname -s 2>/dev/null | tr "[:lower:]" "[:upper:]")
 OSLOWER = $(shell uname -s 2>/dev/null | tr "[:upper:]" "[:lower:]")
@@ -132,7 +132,7 @@ else
       TARGET := release
 endif
 
-ALL_CCFLAGS :=
+ALL_CCFLAGS := -Wno-deprecated-declarations -Xptxas='-w'# disable all warnings
 ALL_CCFLAGS += $(NVCCFLAGS)
 ALL_CCFLAGS += $(EXTRA_NVCCFLAGS)
 ALL_CCFLAGS += $(addprefix -Xcompiler ,$(CCFLAGS))
@@ -176,7 +176,7 @@ endif
 
 ALL_CCFLAGS += -Xcompiler -fopenmp
 
-LIBRARIES += -lgomp
+LIBRARIES += -lgomp -lstdc++ -lm
 
 ifeq ($(SAMPLE_ENABLED),0)
 EXEC ?= @echo "[@]"
