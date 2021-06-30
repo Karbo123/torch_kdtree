@@ -2,7 +2,7 @@
 
 > Adapted from: [KdTreeGPU](https://github.com/johnarobinson77/KdTreeGPU)
 
-Under heavily development
+Under heavy development
 
 # Build
 
