@@ -2,9 +2,13 @@
 
 > Adapted from: [KdTreeGPU](https://github.com/johnarobinson77/KdTreeGPU)
 
-Under heavy development
+under heavy development
 
 # Build
+
+build environment:
+- torch == 1.8.0
+- nvcc == 10.2
 
 ```
 mkdir obj
