@@ -11,6 +11,10 @@ build environment:
 - nvcc == 10.2
 
 ```
-mkdir obj
-make
+mkdir build && cd build
+
+cmake .. \
+-DCMAKE_PREFIX_PATH=`python -c 'import torch;print(torch.utils.cmake_prefix_path)'` \
+-DCMAKE_CUDA_ARCHITECTURES=60 \
+-DCUDA_TOOLKIT_ROOT_DIR=$CU102_CUDA_TOOLKIT_DIR
 ```

@@ -670,7 +670,7 @@ refIdx_t Gpu::buildKdTreeGPU(const sint numTuples, const int startP, const sint 
 		checkCudaErrors(cudaMalloc((void **) &d_references[dim], (numTuples)*sizeof(int)));
 	}
 
-	const sint tuplesDepth = int(floor(log2(float(numTuples))));
+	const sint tuplesDepth = int(floor(std::log2(float(numTuples))));
 	for (sint i=0;  i<tuplesDepth-1; i++) {
 		sint p = (i + startP) % dim;
 		partitionDim( d_kdNodes, d_coord, d_references, p, dim, numTuples, i, numBlocks*numThreads);
@@ -891,7 +891,7 @@ void Gpu::closeVerifyKdTree() {
  */
 sint Gpu::verifyKdTreeGPU(const sint root, const sint startP, const sint dim, const sint numTuples) {
 	setDevice();
-	const sint logNumTuples = int(floor(log2(float(numTuples))));
+	const sint logNumTuples = int(floor(std::log2(float(numTuples))));
 
 	// Put the root node in the children array for level 0
 	checkCudaErrors(cudaMemcpyAsync(d_midRefs[0], &root, sizeof(refIdx_t), cudaMemcpyHostToDevice, stream));

@@ -132,11 +132,13 @@ else
       TARGET := release
 endif
 
-ALL_CCFLAGS := -Wno-deprecated-declarations -Xptxas='-w'# disable all warnings
+ALL_CCFLAGS := -w -Xptxas='-w'# disable all warnings
 ALL_CCFLAGS += $(NVCCFLAGS)
 ALL_CCFLAGS += $(EXTRA_NVCCFLAGS)
+ALL_CCFLAGS += -D__GNUC__=7
 ALL_CCFLAGS += $(addprefix -Xcompiler ,$(CCFLAGS))
 ALL_CCFLAGS += $(addprefix -Xcompiler ,$(EXTRA_CCFLAGS))
+ALL_CCFLAGS += $(shell python -c "import torch.utils.cpp_extension as C; print('-L' + ' -L'.join(C.library_paths()))")
 
 ALL_LDFLAGS :=
 ALL_LDFLAGS += $(ALL_CCFLAGS)
@@ -144,8 +146,10 @@ ALL_LDFLAGS += $(addprefix -Xlinker ,$(LDFLAGS))
 ALL_LDFLAGS += $(addprefix -Xlinker ,$(EXTRA_LDFLAGS))
 
 # Common includes and paths for CUDA
-INCLUDES  := -I/usr/local/cuda/samples/common/inc
-LIBRARIES :=
+INCLUDES  := $(shell python -c "import torch.utils.cpp_extension as C; print('-I' + ' -I'.join(C.include_paths()))")
+INCLUDES  += $(shell python3.7-config --includes)
+INCLUDES  += -I/usr/local/cuda/samples/common/inc
+LIBRARIES := -ltorch -lc10 -lc10_cuda -lcuda -lnvrtc -lnvToolsExt
 
 ################################################################################
 
@@ -176,7 +180,7 @@ endif
 
 ALL_CCFLAGS += -Xcompiler -fopenmp
 
-LIBRARIES += -lgomp -lstdc++ -lm
+LIBRARIES += -lgomp -lstdc++ -lm -lc
 
 ifeq ($(SAMPLE_ENABLED),0)
 EXEC ?= @echo "[@]"
@@ -221,7 +225,8 @@ obj/torch_kdtree.o:obj/removeDups.o obj/KdTreeGPUsms.o obj/Gpu.o obj/mergeSort.o
 kdTreeGPUsms: obj/removeDups.o obj/KdTreeGPUsms.o obj/Gpu.o obj/mergeSort.o obj/buildKdTree.o
 	$(EXEC) $(NVCC) $(ALL_LDFLAGS) $(GENCODE_FLAGS) -o $@ $+ $(LIBRARIES)
 
-torchkdtree.so: obj/torch_kdtree.o
+torchkdtree.so: src/torch_kdtree.cu src/torch_kdtree.h obj/torch_kdtree.o
+	$(EXEC) $(NVCC) $(INCLUDES) $(ALL_LDFLAGS) $(GENCODE_FLAGS) -shared -Xcompiler -fPIC -rdc=true -o $@ -dc $< $(LIBRARIES)
 
 ############
 

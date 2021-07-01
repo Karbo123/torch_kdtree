@@ -727,8 +727,8 @@ void Gpu::partitionDim(KdNode d_kdNodes[], const KdCoord d_coords[], refIdx_t* l
 		const sint p, const sint dim, const sint numTuples, const sint level, const sint numThreads) {
 
 	uint numWarps = numThreads/32;
-	uint logNumWarps = (uint)log2((float)numWarps);
-	uint logNumTuples = (uint)ceil(log2((float)numTuples));
+	uint logNumWarps = (uint)std::log2((float)numWarps);
+	uint logNumTuples = (uint)ceil(std::log2((float)numTuples));
 	// This portion sets up the tread and block size to work with small numbers of thread
 	// This is only useful for debug situations.
 	sint numBlocks;
@@ -906,7 +906,7 @@ void Gpu::partitionDimLast(KdNode d_kdNodes[], const KdCoord coord[], refIdx_t* 
 		const sint p, const sint dim, const sint numTuples, const sint level, const sint numThreads) {
 
 	uint numWarps = numThreads;
-	uint logNumWarps = (uint)log2((float)numWarps);
+	uint logNumWarps = (uint)std::log2((float)numWarps);
 
 	sint loopLevels;
 	sint remLevels;
