@@ -48,7 +48,7 @@
 #include <stdint.h>
 using std::setprecision;
 
-typedef float KdCoord;
+typedef int32_t KdCoord;
 typedef int32_t refIdx_t;
 
 typedef int32_t sint;
@@ -61,6 +61,9 @@ class KdNode
 public:
 	int32_t tuple;              // index of the coordinate of this node.
 	refIdx_t ltChild, gtChild;  // index into the kdNodes array of the gt and lt child nodes
+
+public:
+	KdNode(int32_t _tuple=0, refIdx_t _ltChild=0, refIdx_t _gtChild=0): tuple(_tuple), ltChild(_ltChild), gtChild(_gtChild) {}
 
 public:
 	inline int32_t getTuple()
