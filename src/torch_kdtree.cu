@@ -204,3 +204,16 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         .def("__repr__", &TorchKDTree::__repr__);
 
 }
+
+
+
+/*
+    TODO: KDTree search
+        https://zhuanlan.zhihu.com/p/45346117
+        https://bbs.huaweicloud.com/blogs/169897
+
+        https://stackoverflow.com/questions/34688977/how-do-i-traverse-a-kdtree-to-find-k-nearest-neighbors
+
+        https://en.wikipedia.org/wiki/K-d_tree#Nearest_neighbour_search
+
+*/
