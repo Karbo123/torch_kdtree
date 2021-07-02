@@ -39,15 +39,79 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort =
 class TorchKDTree
 {
 public:
-    KdNode* root = nullptr;
-    KdNode* kdNodes = nullptr;
-    KdCoord* coordinates = nullptr;
-    sint numPoints = 0;
-    sint numDimensions = 3;
-    bool is_cuda = true;
+    KdNode* root;
+    KdNode* kdNodes;
+    KdCoord* coordinates;
+    sint numPoints;
+    sint numDimensions;
+    bool is_cuda;
 
-    TorchKDTree(KdNode* _root, KdNode* _kdNodes, KdCoord* _coordinates, sint _numPoints, sint _numDimensions, bool _is_cuda):
-        root(_root), kdNodes(_kdNodes), coordinates(_coordinates), numPoints(_numPoints), numDimensions(_numDimensions), is_cuda(_is_cuda) {}
+    TorchKDTree(sint _numPoints, sint _numDimensions): root(nullptr), numPoints(_numPoints), numDimensions(_numDimensions), is_cuda(true)
+    {
+        kdNodes = new KdNode[numPoints];
+        coordinates = new KdCoord[numPoints * numDimensions];
+        if (kdNodes == nullptr || coordinates == nullptr)
+        {
+            throw runtime_error("error when allocating host memory");
+        }
+    }
+
+    TorchKDTree(TorchKDTree&& _tree)
+    {
+        root = _tree.root; _tree.root = nullptr;
+        kdNodes = _tree.kdNodes; _tree.kdNodes = nullptr;
+        coordinates = _tree.coordinates; _tree.coordinates = nullptr;
+        numPoints = _tree.numPoints; _tree.numPoints = 0;
+        numDimensions = _tree.numDimensions;
+        is_cuda = _tree.is_cuda;
+    }
+
+    ~TorchKDTree()
+    {
+        delete[] kdNodes;
+        delete[] coordinates;
+    }
+
+    std::string __repr__()
+    {
+        std::stringstream _str_stream;
+        _str_stream << "<TorchKDTree of " << numDimensions << "dims and " << numPoints << "points on device " << (is_cuda ? "CUDA" : "CPU") << ">" << std::endl;
+        return _str_stream.str();
+    }
+
+    TorchKDTree& cpu()
+    {
+        // read the KdTree back from GPU
+        Gpu::getKdTreeResults(kdNodes, coordinates, numPoints, numDimensions);
+        // now kdNodes have values
+        is_cuda = false;
+        return *this;
+    }
+
+    sint verify()
+    {
+        if (is_cuda) throw runtime_error("CUDA-KDTree cannot be verified from host");
+        sint numberOfNodes = root->verifyKdTree(kdNodes, coordinates, numDimensions, 0); // number of nodes on host
+        return numberOfNodes;
+    }
+
+    KdNode get_root()
+    {
+        if (is_cuda) throw runtime_error("CUDA-KDTree cannot access root node from host");
+        return *root;
+    }
+
+    sint get_root_index()
+    {
+        if (is_cuda) throw runtime_error("CUDA-KDTree cannot access root index from host");
+        return root - kdNodes;
+    }
+
+    KdNode get_node(sint index)
+    {
+        if (is_cuda) throw runtime_error("CUDA-KDTree cannot access node from host");
+        return kdNodes[index];
+    }
 };
 
 ////////////////////////////////////////////////////////////////
@@ -71,14 +135,15 @@ TorchKDTree torchBuildCUDAKDTree(torch::Tensor data)
     CHECK_INT32(data);
     sint numPoints = data.size(0);
     sint numDimensions = data.size(1);
-    KdCoord* coordinates = new KdCoord[numPoints * numDimensions]; // on HOST;
+    TorchKDTree tree(numPoints, numDimensions);
     if (data.is_cuda())
     {
         KdCoord* data_ptr = data.data_ptr<KdCoord>();
-        gpuErrchk(cudaMemcpy(coordinates, data_ptr, numPoints * numDimensions * sizeof(KdCoord), cudaMemcpyDeviceToHost));
+        gpuErrchk(cudaMemcpy(tree.coordinates, data_ptr, numPoints * numDimensions * sizeof(KdCoord), cudaMemcpyDeviceToHost)); // make a copy
     } else
     {
-        coordinates = data.data_ptr<KdCoord>(); // NOTE: do not make a copy
+        KdCoord* data_ptr = data.data_ptr<KdCoord>();
+        std::memcpy(tree.coordinates, data_ptr, numPoints * numDimensions * sizeof(KdCoord)); // make a copy
     }
 
     // initialize environment
@@ -101,77 +166,19 @@ TorchKDTree torchBuildCUDAKDTree(torch::Tensor data)
         std::cout << "numPoints=" << numPoints << ", "
                   << "numDimensions=" << numDimensions << ", "
                   << "numThreads=" << numThreads << ", "
-                  << "numBlocks=" << numBlocks << std::endl;
+                  << "numBlocks=" << numBlocks << ", "
+                  << "numGPUs=" << numGPUs << std::endl;
         
         environ_cuda = environ_cuda_target;
     }
 
-    // Create the k-d tree.  First copy the data to a tuple in its kdNode.
-	// also null out the gt and lt references
-	// create and initialize the kdNodes array
-	KdNode *kdNodes = new KdNode[numPoints];
-    if (kdNodes == NULL) 
-    {
-        _str_stream.str("");
-		_str_stream << "Can't allocate " << numPoints << " kdNodes" << std::endl;
-        throw runtime_error(_str_stream.str());
-    }
-
     // create the tree
-    KdNode *root = KdNode::createKdTree(kdNodes, coordinates, numDimensions, numPoints);
+    // NOTE:
+    // - kdNodes unchanges
+    tree.root = KdNode::createKdTree(tree.kdNodes, tree.coordinates, numDimensions, numPoints);
     
-    
-    
-    return TorchKDTree(root, kdNodes, coordinates, numPoints, numDimensions, true);
+    return std::move(tree); // no copy
 }
-
-
-
-/*
-    move the CUDA-KDTree to CPU
-*/
-void torchKDTree2CPU()
-{
-    // TODO ....
-
-    // read the KdTree back from GPU
-    Gpu::getKdTreeResults(kdNodes, coordinates, numPoints, numDimensions);
-}
-
-
-
-/*
-    ball query CPU-KDTree
-*/
-void torchBallQueryCPUKDTree(float radius, int num_max)
-{
-}
-
-
-
-/*
-    knn query CPU-KDTree
-*/
-void torchKNNQueryCPUKDTree(int k)
-{
-}
-
-
-/*
-    ball query CUDA-KDTree
-*/
-void torchBallQueryCUDAKDTree(float radius, int num_max)
-{
-}
-
-
-/*
-    knn query CUDA-KDTree
-*/
-void torchKNNQueryCUDAKDTree(int k)
-{
-}
-
 
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
@@ -179,15 +186,21 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
     m.doc() = "A CUDA implementation of KDTree in PyTorch";
 
     m.def("torchBuildCUDAKDTree", &torchBuildCUDAKDTree);
-    m.def("torchKDTree2CPU", &torchKDTree2CPU);
-    m.def("torchBallQueryCPUKDTree", &torchBallQueryCPUKDTree);
-    m.def("torchKNNQueryCPUKDTree", &torchKNNQueryCPUKDTree);
-    m.def("torchBallQueryCUDAKDTree", &torchBallQueryCUDAKDTree);
-    m.def("torchKNNQueryCUDAKDTree", &torchKNNQueryCUDAKDTree);
 
     py::class_<KdNode>(m, "KdNode")
         .def(py::init<int32_t, refIdx_t, refIdx_t>()) // tuple, ltChild, gtChild
         .def_readwrite("tuple", &KdNode::tuple)
         .def_readwrite("ltChild", &KdNode::ltChild)
         .def_readwrite("gtChild", &KdNode::gtChild);
+    
+    py::class_<TorchKDTree>(m, "TorchKDTree")
+        .def_readonly("numPoints", &TorchKDTree::numPoints)
+        .def_readonly("numDimensions", &TorchKDTree::numDimensions)
+        .def_readonly("is_cuda", &TorchKDTree::is_cuda)
+        .def("cpu", &TorchKDTree::cpu)
+        .def("verify", &TorchKDTree::verify)
+        .def("get_root", &TorchKDTree::get_root)
+        .def("get_node", &TorchKDTree::get_node)
+        .def("__repr__", &TorchKDTree::__repr__);
+
 }
