@@ -16,6 +16,7 @@ namespace py = pybind11;
 
 #define CHECK_CONTIGUOUS(x) TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")
 #define CHECK_INT32(x) TORCH_CHECK(x.dtype()==torch::kInt32, #x " must be int32")
+#define CHECK_FLOAT32(x) TORCH_CHECK(x.dtype()==torch::kFloat32, #x " must be float32")
 
 //////////
 
@@ -49,8 +50,10 @@ public:
     sint numPoints;
     sint numDimensions;
     bool is_cuda;
+    float scale, offset;
 
-    TorchKDTree(sint _numPoints, sint _numDimensions): root(nullptr), numPoints(_numPoints), numDimensions(_numDimensions), is_cuda(true)
+    TorchKDTree(sint _numPoints, sint _numDimensions, float _scale, float _offset): root(nullptr), numPoints(_numPoints), numDimensions(_numDimensions), is_cuda(true), 
+                                                                                    scale(_scale), offset(_offset)
     {
         kdNodes = new KdNode[numPoints];
         coordinates = new KdCoord[numPoints * numDimensions];
@@ -68,6 +71,8 @@ public:
         numPoints = _tree.numPoints; _tree.numPoints = 0;
         numDimensions = _tree.numDimensions;
         is_cuda = _tree.is_cuda;
+        scale = _tree.scale;
+        offset = _tree.offset;
     }
 
     ~TorchKDTree()
@@ -224,7 +229,7 @@ public:
                     {
                         node_bro = kdNodes[node_end.brother];
                         dist_plane = squared_distance_plane(point, kdNodes[node_end.parent]);
-                        if (dist_plane < dist) // NOTE @@@@@@@@@@@@@@@@@@@@@@@@@ SHOULD COMPARE WITH THE BEST ????????????????????????????????????
+                        if (dist_plane < dist_best) // NOTE @@@@@@@@@@@@@@@@@@@@@@@@@ SHOULD COMPARE WITH THE BEST ????????????????????????????????????
                         {
                             buffer.emplace(start_end(node_bro, _search(point, node_bro)));
                         }
@@ -239,11 +244,32 @@ public:
         return node_best;
     }
 
-    // testing function for searching the nearest point for a single query @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-    sint test_search_nearest(torch::Tensor point)
+    torch::Tensor search_nearest(torch::Tensor points)
     {
-        KdNode node = _search_nearest(point.data_ptr<KdCoord>());
-        return node.tuple;
+        CHECK_CONTIGUOUS(points);
+        CHECK_FLOAT32(points);
+        TORCH_CHECK(points.size(1) == numDimensions, "dimensions mismatch");
+        sint numQuery = points.size(0);
+        // torch::Tensor points_int = torch::round(torch::add(torch::mul(points, scale), offset)).to(torch::kInt32);
+        torch::Tensor points_int = torch::round(points * scale + offset).to(torch::kInt32);
+        KdCoord* points_int_ptr = points_int.data_ptr<KdCoord>();
+        torch::Tensor indices_tensor;
+
+        if (is_cuda)
+        {
+            throw runtime_error("CUDA-KDTree cannot do searching");
+        }
+        else
+        {
+            indices_tensor = torch::zeros({numQuery}, torch::kInt64);
+            int64_t* raw_ptr = indices_tensor.data_ptr<int64_t>();
+            for(sint i = 0; i < numQuery; ++i) // TODO parallel @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+            {
+                raw_ptr[i] = _search_nearest(points_int_ptr + i * numDimensions).tuple;
+            }
+        }
+
+        return indices_tensor;
     }
 
 
@@ -264,14 +290,14 @@ const sint numBlocks     = 32;
     TODO  @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
     - if it is already on CUDA, do not copy to CPU
 */
-TorchKDTree torchBuildCUDAKDTree(torch::Tensor data)
+TorchKDTree torchBuildCUDAKDTree(torch::Tensor data, float scale, float offset)
 {
     // check input
     CHECK_CONTIGUOUS(data);
     CHECK_INT32(data);
     sint numPoints = data.size(0);
     sint numDimensions = data.size(1);
-    TorchKDTree tree(numPoints, numDimensions);
+    TorchKDTree tree(numPoints, numDimensions, scale, offset);
     if (data.is_cuda())
     {
         KdCoord* data_ptr = data.data_ptr<KdCoord>();
@@ -336,12 +362,14 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         .def_readonly("numPoints", &TorchKDTree::numPoints)
         .def_readonly("numDimensions", &TorchKDTree::numDimensions)
         .def_readonly("is_cuda", &TorchKDTree::is_cuda)
+        .def_readonly("scale", &TorchKDTree::scale)
+        .def_readonly("offset", &TorchKDTree::offset)
         .def("cpu", &TorchKDTree::cpu)
         .def("verify", &TorchKDTree::verify)
         .def("get_root", &TorchKDTree::get_root)
         .def("get_node", &TorchKDTree::get_node)
         .def("__repr__", &TorchKDTree::__repr__)
-        .def("test_search_nearest", &TorchKDTree::test_search_nearest);
+        .def("search_nearest", &TorchKDTree::search_nearest);
 
 }
 
