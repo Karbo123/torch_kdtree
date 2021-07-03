@@ -138,7 +138,7 @@ public:
             if (parent >= 0) kdNodes[node].brother = (kdNodes[parent].ltChild == node) ? (kdNodes[parent].gtChild) : (kdNodes[parent].ltChild);
             else kdNodes[node].brother = -1;
             
-            
+
             if (kdNodes[node].gtChild >= 0) buffer.emplace(node_parent_depth(kdNodes[node].gtChild, node, depth + 1)); // push right tree
             if (kdNodes[node].ltChild >= 0) buffer.emplace(node_parent_depth(kdNodes[node].ltChild, node, depth + 1)); // push left tree
         }
@@ -147,11 +147,10 @@ public:
     ////////////////////////////////////////////////////////////////////////////////////////////
     //////////////////////////////////// searching functions ///////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////////////////////
-    // search for one query point, from _node of depth to the bottom leaf
-    KdNode _search(const KdCoord* query, const KdNode& _node, sint depth)
+    // search for one query point, from _node to the bottom leaf
+    KdNode _search(const KdCoord* query, const KdNode& _node)
     {
         KdNode node = _node; // finally to be leaf node
-        sint depth_inc = 0;
         while (true)
         {
             bool has_left_node = (node.ltChild >= 0);
@@ -162,13 +161,11 @@ public:
                 else if (!has_right_node) node = get_node(node.ltChild);
                 else
                 {
-                    sint split_dim = (depth + depth_inc) % numDimensions;
-                    KdCoord val = query[split_dim];
-                    KdCoord val_node = coordinates[numDimensions * node.tuple + split_dim];
+                    KdCoord val = query[node.split_dim];
+                    KdCoord val_node = coordinates[numDimensions * node.tuple + node.split_dim];
                     if (val < val_node) node = get_node(node.ltChild);
                     else node = get_node(node.gtChild);
                 }
-                depth_inc++;
             }
             else break;
         }
@@ -176,7 +173,7 @@ public:
     }
 
     // squared distance
-    KdCoord squared_distance(KdCoord* point_a, KdCoord* point_b, sint numDimensions)
+    KdCoord squared_distance(const KdCoord* point_a, const KdCoord* point_b)
     {
         KdCoord sum = 0;
         for (sint i = 0; i < numDimensions; ++i)
@@ -187,10 +184,68 @@ public:
     }
 
     // to plane squared distance
-    KdCoord squared_distance_plane(KdCoord* point, sint split_dim, const KdNode& _node)
+    KdCoord squared_distance_plane(const KdCoord* point, const KdNode& node)
     {
-        return POW2(point[split_dim] - coordinates[numDimensions * _node.tuple + split_dim]);
+        return POW2(point[node.split_dim] - coordinates[numDimensions * node.tuple + node.split_dim]);
     }
+
+    // search for a single point
+    KdNode _search_nearest(const KdCoord* point)
+    {
+        using start_end = std::tuple<KdNode, KdNode>;
+
+        KdCoord dist       = std::numeric_limits<KdCoord>::max();
+        KdCoord dist_plane = std::numeric_limits<KdCoord>::max();
+        KdCoord dist_best  = std::numeric_limits<KdCoord>::max();
+        KdNode  node_best  = _search(point, *root);
+        KdNode  node_bro;
+        
+        // BFS
+        KdNode node_start, node_end;
+        std::queue<start_end> buffer;
+        buffer.emplace(start_end(*root, node_best));
+        while (!buffer.empty())
+        {
+            std::tie(node_start, node_end) = buffer.front();
+            buffer.pop();
+
+            while (true)
+            {
+                dist = squared_distance(point, coordinates + numDimensions * node_end.tuple);
+                if (dist < dist_best)
+                {
+                    dist_best = dist;
+                    node_best = node_end;
+                }
+
+                if (node_end.tuple != node_start.tuple)
+                {
+                    if (node_end.brother >= 0)
+                    {
+                        node_bro = kdNodes[node_end.brother];
+                        dist_plane = squared_distance_plane(point, kdNodes[node_end.parent]);
+                        if (dist_plane < dist) // NOTE @@@@@@@@@@@@@@@@@@@@@@@@@ SHOULD COMPARE WITH THE BEST ????????????????????????????????????
+                        {
+                            buffer.emplace(start_end(node_bro, _search(point, node_bro)));
+                        }
+                    }
+
+                    node_end = kdNodes[node_end.parent]; // WHAT IS THE USE ??????????????? @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+                }
+                else break;
+            }
+        }
+
+        return node_best;
+    }
+
+    // testing function for searching the nearest point for a single query @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+    sint test_search_nearest(torch::Tensor point)
+    {
+        KdNode node = _search_nearest(point.data_ptr<KdCoord>());
+        return node.tuple;
+    }
+
 
 
 };
@@ -285,7 +340,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         .def("verify", &TorchKDTree::verify)
         .def("get_root", &TorchKDTree::get_root)
         .def("get_node", &TorchKDTree::get_node)
-        .def("__repr__", &TorchKDTree::__repr__);
+        .def("__repr__", &TorchKDTree::__repr__)
+        .def("test_search_nearest", &TorchKDTree::test_search_nearest);
 
 }
 

@@ -44,6 +44,8 @@ if __name__ == "__main__":
     tree.cpu().verify()
     import ipdb; ipdb.set_trace()
 
+    index = tree.test_search_nearest(data_input[0])
+
     # TorchKDTree_to_cKDTree(tree, data)
 
     # import ipdb; ipdb.set_trace()
