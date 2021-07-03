@@ -7,6 +7,8 @@
 #include <sstream>
 #include <ostream>
 #include <stdexcept>
+#include <stack>
+#include <tuple>
 
 namespace py = pybind11;
 
@@ -33,6 +35,8 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort =
     {                                                   \
         CUDA_ERR::gpuAssert((ans), __FILE__, __LINE__); \
     }
+
+#define POW2(x) ((x) * (x))
 
 ////////////////////////////////////////////////////////////////
 
@@ -85,6 +89,8 @@ public:
         Gpu::getKdTreeResults(kdNodes, coordinates, numPoints, numDimensions);
         // now kdNodes have values
         is_cuda = false;
+        // process the whole tree // TODO actually we should process the tree on CUDA @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+        _traverse_and_assign();
         return *this;
     }
 
@@ -112,6 +118,81 @@ public:
         if (is_cuda) throw runtime_error("CUDA-KDTree cannot access node from host");
         return kdNodes[index];
     }
+
+    void _traverse_and_assign()
+    {
+        using node_parent_depth = std::tuple<refIdx_t, refIdx_t, sint>; // current_node, parent_node, depth
+        
+        // DFS
+        refIdx_t node, parent; sint depth;
+        std::stack<node_parent_depth> buffer;
+        buffer.emplace(node_parent_depth(root - kdNodes, -1, 0)); // NOTE: -1 means no parent
+        while (!buffer.empty())
+        {
+            std::tie(node, parent, depth) = buffer.top();
+            buffer.pop();
+
+            // do something
+            kdNodes[node].split_dim = depth % numDimensions;
+            kdNodes[node].parent = parent;
+            if (parent >= 0) kdNodes[node].brother = (kdNodes[parent].ltChild == node) ? (kdNodes[parent].gtChild) : (kdNodes[parent].ltChild);
+            else kdNodes[node].brother = -1;
+            
+            
+            if (kdNodes[node].gtChild >= 0) buffer.emplace(node_parent_depth(kdNodes[node].gtChild, node, depth + 1)); // push right tree
+            if (kdNodes[node].ltChild >= 0) buffer.emplace(node_parent_depth(kdNodes[node].ltChild, node, depth + 1)); // push left tree
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////// searching functions ///////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    // search for one query point, from _node of depth to the bottom leaf
+    KdNode _search(const KdCoord* query, const KdNode& _node, sint depth)
+    {
+        KdNode node = _node; // finally to be leaf node
+        sint depth_inc = 0;
+        while (true)
+        {
+            bool has_left_node = (node.ltChild >= 0);
+            bool has_right_node = (node.gtChild >= 0);
+            if (has_left_node || has_right_node)
+            {
+                if (!has_left_node) node = get_node(node.gtChild);
+                else if (!has_right_node) node = get_node(node.ltChild);
+                else
+                {
+                    sint split_dim = (depth + depth_inc) % numDimensions;
+                    KdCoord val = query[split_dim];
+                    KdCoord val_node = coordinates[numDimensions * node.tuple + split_dim];
+                    if (val < val_node) node = get_node(node.ltChild);
+                    else node = get_node(node.gtChild);
+                }
+                depth_inc++;
+            }
+            else break;
+        }
+        return node;
+    }
+
+    // squared distance
+    KdCoord squared_distance(KdCoord* point_a, KdCoord* point_b, sint numDimensions)
+    {
+        KdCoord sum = 0;
+        for (sint i = 0; i < numDimensions; ++i)
+        {
+            sum += POW2(point_a[i] - point_b[i]);
+        }
+        return sum;
+    }
+
+    // to plane squared distance
+    KdCoord squared_distance_plane(KdCoord* point, sint split_dim, const KdNode& _node)
+    {
+        return POW2(point[split_dim] - coordinates[numDimensions * _node.tuple + split_dim]);
+    }
+
+
 };
 
 ////////////////////////////////////////////////////////////////
@@ -125,7 +206,7 @@ const sint numBlocks     = 32;
 
 /*
     build CUDA-KDTree
-    TODO 
+    TODO  @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
     - if it is already on CUDA, do not copy to CPU
 */
 TorchKDTree torchBuildCUDAKDTree(torch::Tensor data)
@@ -189,9 +270,12 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
 
     py::class_<KdNode>(m, "KdNode")
         .def(py::init<int32_t, refIdx_t, refIdx_t>()) // tuple, ltChild, gtChild
-        .def_readwrite("tuple", &KdNode::tuple)
-        .def_readwrite("ltChild", &KdNode::ltChild)
-        .def_readwrite("gtChild", &KdNode::gtChild);
+        .def_readonly("tuple", &KdNode::tuple)
+        .def_readonly("ltChild", &KdNode::ltChild)
+        .def_readonly("gtChild", &KdNode::gtChild)
+        .def_readonly("split_dim", &KdNode::split_dim)
+        .def_readonly("parent", &KdNode::parent)
+        .def_readonly("brother", &KdNode::brother);
     
     py::class_<TorchKDTree>(m, "TorchKDTree")
         .def_readonly("numPoints", &TorchKDTree::numPoints)
@@ -208,7 +292,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
 
 
 /*
-    TODO: KDTree search
+    TODO: KDTree search @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
         https://zhuanlan.zhihu.com/p/45346117
         https://bbs.huaweicloud.com/blogs/169897
 

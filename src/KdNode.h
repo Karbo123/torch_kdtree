@@ -61,9 +61,14 @@ class KdNode
 public:
 	int32_t tuple;              // index of the coordinate of this node.
 	refIdx_t ltChild, gtChild;  // index into the kdNodes array of the gt and lt child nodes
+	
+	int32_t split_dim;          // the considered splitting dim
+	refIdx_t parent;             // parent's index of kdNodes array
+	refIdx_t brother;            // brother's index of kdNodes array
 
 public:
-	KdNode(int32_t _tuple=0, refIdx_t _ltChild=0, refIdx_t _gtChild=0): tuple(_tuple), ltChild(_ltChild), gtChild(_gtChild) {}
+	KdNode(int32_t _tuple=0, refIdx_t _ltChild=0, refIdx_t _gtChild=0): tuple(_tuple), ltChild(_ltChild), gtChild(_gtChild), 
+			split_dim(0), parent(-1), brother(-1) {}
 
 public:
 	inline int32_t getTuple()
