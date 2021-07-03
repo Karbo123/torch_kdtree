@@ -3,8 +3,11 @@ import os, sys; sys.path.append(os.path.join(os.path.dirname(__file__), "../buil
 import torchkdtree
 from scipy.spatial.ckdtree import cKDTreeNode
 
-RANGE_MAX = torch.iinfo(torch.int32).max / 10
-RANGE_MIN = torch.iinfo(torch.int32).min / 10
+
+# NOTE 3 * ((MAX - MIN) / K) ** 2 <= MAX     ==>   K >= 160529.75978303837
+RANGE_MAX = torch.iinfo(torch.int32).max / 160530
+RANGE_MIN = torch.iinfo(torch.int32).min / 160530
+
 
 def buildKDTree(data):
     range_min, range_max = data.min(), data.max()
@@ -44,7 +47,10 @@ if __name__ == "__main__":
     tree.cpu().verify()
     import ipdb; ipdb.set_trace()
 
-    index = tree.test_search_nearest(data_input[0])
+    for i in range(65536):
+        assert i == tree.test_search_nearest(data_input[i])
+        print(f"okey for {i}")
+
 
     # TorchKDTree_to_cKDTree(tree, data)
 
