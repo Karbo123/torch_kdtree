@@ -156,10 +156,11 @@ public:
     {
         sint split_dim;
         KdCoord val, val_node;
+        bool has_left_node, has_right_node;
         while (true)
         {
-            bool has_left_node = (kdNodes[node].ltChild >= 0);
-            bool has_right_node = (kdNodes[node].gtChild >= 0);
+            has_left_node = (kdNodes[node].ltChild >= 0);
+            has_right_node = (kdNodes[node].gtChild >= 0);
             if (has_left_node || has_right_node)
             {
                 if (has_left_node && has_right_node)
