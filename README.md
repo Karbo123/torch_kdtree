@@ -7,6 +7,10 @@ This repo is specially useful if the point cloud is very large (>100,000 points)
 Currently KD-Tree is built on CUDA, and the query is done on CPU.
 We are now working on making a new function of querying point on CUDA device, which should be faster. 
 
+Functions currently implemented:
+- nearest search (CPU)
+
+
 **NOTE** this repo is still under heavy development
 
 
