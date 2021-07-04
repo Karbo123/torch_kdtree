@@ -154,52 +154,46 @@ public:
     ////////////////////////////////////////////////////////////////////////////////////////////
     refIdx_t _search(const KdCoord* query, refIdx_t node) // searching down the tree until reaching leaf node
     {
-        sint split_dim;
         KdCoord val, val_node;
         bool has_left_node, has_right_node;
         while (true)
         {
-            has_left_node = (kdNodes[node].ltChild >= 0);
-            has_right_node = (kdNodes[node].gtChild >= 0);
+            const KdNode& node_current = kdNodes[node];
+
+            has_left_node = (node_current.ltChild >= 0);
+            has_right_node = (node_current.gtChild >= 0);
             if (has_left_node || has_right_node)
             {
                 if (has_left_node && has_right_node)
                 {
-                    split_dim = kdNodes[node].split_dim;
-                    val = query[split_dim];
-                    val_node = coordinates[numDimensions * node + split_dim];
-                    if (val < val_node) node = kdNodes[node].ltChild;
-                    else node = kdNodes[node].gtChild;
+                    val = query[node_current.split_dim];
+                    val_node = coordinates[numDimensions * node_current.tuple + node_current.split_dim];
+                    if (val < val_node) node = node_current.ltChild;
+                    else node = node_current.gtChild;
                 }
-                else if (has_left_node) node = kdNodes[node].ltChild;
-                else node = kdNodes[node].gtChild;
+                else if (has_left_node) node = node_current.ltChild;
+                else node = node_current.gtChild;
             }
             else break;
         }
         return node;
     }
 
-    // squared distance
-    inline 
-    KdCoord squared_distance(const KdCoord* point_a, const KdCoord* point_b)
+    inline KdCoord squared_distance(const KdCoord* point_a, const KdCoord* point_b) // squared distance
     {
         KdCoord sum = 0;
-        for (sint i = 0; i < numDimensions; ++i)
-        {
-            sum += POW2(point_a[i] - point_b[i]);
-        }
+        for (sint i = 0; i < numDimensions; ++i) sum += POW2(point_a[i] - point_b[i]);
         return sum;
     }
 
-    // to plane squared distance
-    inline
-    KdCoord squared_distance_plane(const KdCoord* point, const KdNode& node)
+    inline KdCoord squared_distance_plane(const KdCoord* point, refIdx_t node) // to plane squared distance
     {
-        return POW2(point[node.split_dim] - coordinates[numDimensions * node.tuple + node.split_dim]);
+        const KdNode& node_plane = kdNodes[node];
+        return POW2(point[node_plane.split_dim] - coordinates[numDimensions * node_plane.tuple + node_plane.split_dim]);
     }
 
     // search for a single point
-    void _search_nearest(const KdCoord* point, int64_t* out)
+    void _search_nearest(const KdCoord* point, int64_t* out_)
     {
         using start_end = std::tuple<KdNode, KdNode>;
 
@@ -247,7 +241,7 @@ public:
             }
         }
 
-        *out = int64_t(node_best.tuple);
+        *out_ = int64_t(node_best.tuple);
     }
 
     torch::Tensor search_nearest(torch::Tensor points)
