@@ -27,12 +27,14 @@ if __name__ == "__main__":
     tree = buildKDTree(data)
     tree.cpu().verify()
 
+
     query = torch.round(torch.randn(65536, 3) * 1024) / 1024
     
     t0 = time()
     index = tree.search_nearest(query)
     print(f"time = {time() - t0}")
-
+    import ipdb; ipdb.set_trace()
+    
     index_gt = knn(data, query, k=1)
     index_gt = index_gt[1][torch.argsort(index_gt[0])]
     wrong_loc = torch.where(index != index_gt)[0]

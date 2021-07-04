@@ -44,7 +44,7 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort =
 class TorchKDTree
 {
 public:
-    KdNode* root;
+    refIdx_t root;
     KdNode* kdNodes;
     KdCoord* coordinates;
     sint numPoints;
@@ -52,11 +52,14 @@ public:
     bool is_cuda;
     float scale, offset;
 
-    TorchKDTree(sint _numPoints, sint _numDimensions, float _scale, float _offset): root(nullptr), numPoints(_numPoints), numDimensions(_numDimensions), is_cuda(true), 
-                                                                                    scale(_scale), offset(_offset)
+    TorchKDTree(sint _numPoints, sint _numDimensions, float _scale, float _offset): 
+            root(-1), 
+            numPoints(_numPoints), numDimensions(_numDimensions), 
+            is_cuda(true), 
+            scale(_scale), offset(_offset)
     {
-        kdNodes = new KdNode[numPoints];
-        coordinates = new KdCoord[numPoints * numDimensions];
+        kdNodes = new KdNode[_numPoints];
+        coordinates = new KdCoord[_numPoints * _numDimensions];
         if (kdNodes == nullptr || coordinates == nullptr)
         {
             throw runtime_error("error when allocating host memory");
@@ -65,7 +68,7 @@ public:
 
     TorchKDTree(TorchKDTree&& _tree)
     {
-        root = _tree.root; _tree.root = nullptr;
+        root = _tree.root; _tree.root = -1;
         kdNodes = _tree.kdNodes; _tree.kdNodes = nullptr;
         coordinates = _tree.coordinates; _tree.coordinates = nullptr;
         numPoints = _tree.numPoints; _tree.numPoints = 0;
@@ -84,38 +87,42 @@ public:
     std::string __repr__()
     {
         std::stringstream _str_stream;
-        _str_stream << "<TorchKDTree of " << numDimensions << "dims and " << numPoints << "points on device " << (is_cuda ? "CUDA" : "CPU") << ">" << std::endl;
+        _str_stream << "<TorchKDTree of " 
+                    << numDimensions << "dims and " 
+                    << numPoints << "points on device " 
+                    << (is_cuda ? "CUDA" : "CPU") << ">" << std::endl;
         return _str_stream.str();
     }
 
     TorchKDTree& cpu()
     {
-        // read the KdTree back from GPU
-        Gpu::getKdTreeResults(kdNodes, coordinates, numPoints, numDimensions);
-        // now kdNodes have values
+        if (is_cuda)
+        {
+            // read the KdTree back from GPU
+            Gpu::getKdTreeResults(kdNodes, coordinates, numPoints, numDimensions);
+            // now kdNodes have values
+        }
+
+        // on CUDA
         is_cuda = false;
+
         // process the whole tree // TODO actually we should process the tree on CUDA @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
         _traverse_and_assign();
+
         return *this;
     }
 
     sint verify()
     {
         if (is_cuda) throw runtime_error("CUDA-KDTree cannot be verified from host");
-        sint numberOfNodes = root->verifyKdTree(kdNodes, coordinates, numDimensions, 0); // number of nodes on host
+        sint numberOfNodes = kdNodes[root].verifyKdTree(kdNodes, coordinates, numDimensions, 0); // number of nodes on host
         return numberOfNodes;
     }
 
     KdNode get_root()
     {
         if (is_cuda) throw runtime_error("CUDA-KDTree cannot access root node from host");
-        return *root;
-    }
-
-    sint get_root_index()
-    {
-        if (is_cuda) throw runtime_error("CUDA-KDTree cannot access root index from host");
-        return root - kdNodes;
+        return kdNodes[root];
     }
 
     KdNode get_node(sint index)
@@ -131,21 +138,23 @@ public:
         // DFS
         refIdx_t node, parent; sint depth;
         std::stack<node_parent_depth> buffer;
-        buffer.emplace(node_parent_depth(root - kdNodes, -1, 0)); // NOTE: -1 means no parent
+        buffer.emplace(node_parent_depth(root, -1, 0)); // NOTE: -1 means no parent
         while (!buffer.empty())
         {
             std::tie(node, parent, depth) = buffer.top();
             buffer.pop();
 
-            // do something
-            kdNodes[node].split_dim = depth % numDimensions;
-            kdNodes[node].parent = parent;
-            if (parent >= 0) kdNodes[node].brother = (kdNodes[parent].ltChild == node) ? (kdNodes[parent].gtChild) : (kdNodes[parent].ltChild);
-            else kdNodes[node].brother = -1;
-            
+            KdNode& node_current = kdNodes[node];
 
-            if (kdNodes[node].gtChild >= 0) buffer.emplace(node_parent_depth(kdNodes[node].gtChild, node, depth + 1)); // push right tree
-            if (kdNodes[node].ltChild >= 0) buffer.emplace(node_parent_depth(kdNodes[node].ltChild, node, depth + 1)); // push left tree
+            // assign
+            node_current.split_dim = depth % numDimensions;
+            node_current.parent = parent;
+            if (parent >= 0) node_current.brother = (kdNodes[parent].ltChild == node) ? (kdNodes[parent].gtChild) : (kdNodes[parent].ltChild);
+            else node_current.brother = -1;
+            
+            // traverse
+            if (node_current.gtChild >= 0) buffer.emplace(node_parent_depth(node_current.gtChild, node, depth + 1)); // push right tree
+            if (node_current.ltChild >= 0) buffer.emplace(node_parent_depth(node_current.ltChild, node, depth + 1)); // push left tree
         }
     }
 
@@ -182,7 +191,8 @@ public:
     inline KdCoord squared_distance(const KdCoord* point_a, const KdCoord* point_b) // squared distance
     {
         KdCoord sum = 0;
-        for (sint i = 0; i < numDimensions; ++i) sum += POW2(point_a[i] - point_b[i]);
+        for (sint i = 0; i < numDimensions; ++i)
+            sum += POW2(point_a[i] - point_b[i]);
         return sum;
     }
 
@@ -195,53 +205,50 @@ public:
     // search for a single point
     void _search_nearest(const KdCoord* point, int64_t* out_)
     {
-        using start_end = std::tuple<KdNode, KdNode>;
+        using start_end = std::tuple<refIdx_t, refIdx_t>;
 
         KdCoord dist       = std::numeric_limits<KdCoord>::max();
         KdCoord dist_plane = std::numeric_limits<KdCoord>::max();
         KdCoord dist_best  = std::numeric_limits<KdCoord>::max();
-        KdNode  node_best  = _search(point, *root);
+        refIdx_t node_best, node_bro;
         
         // BFS
         std::queue<start_end> buffer;
-        KdNode node_start, node_end, node_bro;
-        buffer.emplace(start_end(*root, node_best));
+        refIdx_t node_start, node_end;
+        buffer.emplace(start_end(root, _search(point, root)));
+
         while (!buffer.empty())
         {
             std::tie(node_start, node_end) = buffer.front();
             buffer.pop();
 
-            dist = squared_distance(point, coordinates + numDimensions * node_start.tuple);
+            // update if current node is better
+            dist = squared_distance(point, coordinates + numDimensions * kdNodes[node_end].tuple);
             if (dist < dist_best)
             {
                 dist_best = dist;
-                node_best = node_start;
+                node_best = node_end;
             }
 
-            while (node_end.tuple != node_start.tuple)
+            // if intersect with plane, search another branch
+            dist_plane = squared_distance_plane(point, node_end);
+            if (dist_plane < dist_best)
             {
-                dist = squared_distance(point, coordinates + numDimensions * node_end.tuple);
-                if (dist < dist_best)
+                node_bro = kdNodes[node_end].brother;
+                if (node_bro >= 0)
                 {
-                    dist_best = dist;
-                    node_best = node_end;
+                    buffer.emplace(start_end(node_bro, _search(point, node_bro)));
                 }
+            }
 
-                if (node_end.brother >= 0)
-                {
-                    dist_plane = squared_distance_plane(point, kdNodes[node_end.parent]);
-                    if (dist_plane < dist_best)
-                    {
-                        node_bro = kdNodes[node_end.brother];
-                        buffer.emplace(start_end(node_bro, _search(point, node_bro)));
-                    }
-                }
-
-                node_end = kdNodes[node_end.parent]; // back track
+            // back trace
+            if (node_start != node_end)
+            {
+                buffer.emplace(start_end(node_start, kdNodes[node_end].parent));
             }
         }
 
-        *out_ = int64_t(node_best.tuple);
+        *out_ = int64_t(kdNodes[node_best].tuple);
     }
 
     torch::Tensor search_nearest(torch::Tensor points)
@@ -339,8 +346,9 @@ TorchKDTree torchBuildCUDAKDTree(torch::Tensor data, float scale, float offset)
     // create the tree
     // NOTE:
     // - kdNodes unchanges
-    tree.root = KdNode::createKdTree(tree.kdNodes, tree.coordinates, numDimensions, numPoints);
-    
+    KdNode* root_ptr = KdNode::createKdTree(tree.kdNodes, tree.coordinates, numDimensions, numPoints);
+    tree.root = refIdx_t(root_ptr - tree.kdNodes);
+
     return std::move(tree); // no copy
 }
 
@@ -356,21 +364,27 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         .def_readonly("tuple", &KdNode::tuple)
         .def_readonly("ltChild", &KdNode::ltChild)
         .def_readonly("gtChild", &KdNode::gtChild)
+        // 
         .def_readonly("split_dim", &KdNode::split_dim)
         .def_readonly("parent", &KdNode::parent)
         .def_readonly("brother", &KdNode::brother);
     
     py::class_<TorchKDTree>(m, "TorchKDTree")
+        // attribute
         .def_readonly("numPoints", &TorchKDTree::numPoints)
         .def_readonly("numDimensions", &TorchKDTree::numDimensions)
         .def_readonly("is_cuda", &TorchKDTree::is_cuda)
         .def_readonly("scale", &TorchKDTree::scale)
         .def_readonly("offset", &TorchKDTree::offset)
+        .def("__repr__", &TorchKDTree::__repr__)
+
+        // access node
         .def_property_readonly("root", &TorchKDTree::get_root)
+        .def("node", &TorchKDTree::get_node)
+
+        // cpu
         .def("cpu", &TorchKDTree::cpu)
         .def("verify", &TorchKDTree::verify)
-        .def("node", &TorchKDTree::get_node)
-        .def("__repr__", &TorchKDTree::__repr__)
         .def("search_nearest", &TorchKDTree::search_nearest);
 
 }
