@@ -17,6 +17,7 @@ file(GLOB COMMON_SOURCES
 
 ########################################################
 add_executable(kdTreeGPUsms ${COMMON_SOURCES} ${CMAKE_SOURCE_DIR}/src/KdTreeGPUsms.cu)
+target_compile_features(kdTreeGPUsms PUBLIC cxx_std_14) 
 
 target_link_libraries(kdTreeGPUsms -lgomp)
 
