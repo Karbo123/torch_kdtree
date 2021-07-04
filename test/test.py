@@ -22,38 +22,17 @@ def buildKDTree(data):
 
 
 
-# def TorchKDTree_to_cKDTree(tree, data):
-
-#     dim = data.size(1)
-    
-#     def _convert(_node, level, split_dim):
-#         split = data[_node.tuple, split_dim]
-#         lesser = _node.ltChild
-#         greater = _node.gtChild
-
-#         return cKDTreeNode(level=level, 
-#                            split=split,
-#                            lesser=_convert(tree.get_node(lesser), level + 1, (split_dim + 1) % dim) if lesser >=0 else None,
-#                            greater=_convert(tree.get_node(greater), level + 1, (split_dim + 1) % dim) if greater >=0 else None,
-#                         )
-
-#     cKDTreeRoot = _convert(tree.get_root(), 0, 0)
-
-#     import ipdb; ipdb.set_trace()
-
-
-
-
 if __name__ == "__main__":
-    # data = torch.randn(4194304, 3)
-    data = torch.randn(65536, 3)
+    data = torch.round(torch.randn(65536, 3) * 1024) / 1024
     tree = buildKDTree(data)
     tree.cpu().verify()
 
-    query = torch.randn(65536, 3)
+    query = torch.round(torch.randn(65536, 3) * 1024) / 1024
+    
     t0 = time()
-    index = tree.search_nearest(query) # TODO very slow, use parallel     TODO same values are wrong ???????????????????????
+    index = tree.search_nearest(query)
     print(f"time = {time() - t0}")
+
     index_gt = knn(data, query, k=1)
     index_gt = index_gt[1][torch.argsort(index_gt[0])]
     wrong_loc = torch.where(index != index_gt)[0]
@@ -66,9 +45,6 @@ if __name__ == "__main__":
 
     import ipdb; ipdb.set_trace()
 
-    # TorchKDTree_to_cKDTree(tree, data)
-
-    # import ipdb; ipdb.set_trace()
 
 
 print()

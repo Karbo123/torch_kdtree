@@ -152,25 +152,26 @@ public:
     ////////////////////////////////////////////////////////////////////////////////////////////
     //////////////////////////////////// searching functions ///////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////////////////////
-    // search for one query point, from _node to the bottom leaf
-    KdNode _search(const KdCoord* query, const KdNode& _node)
+    refIdx_t _search(const KdCoord* query, refIdx_t node) // searching down the tree until reaching leaf node
     {
-        KdNode node = _node; // finally to be leaf node
+        sint split_dim;
+        KdCoord val, val_node;
         while (true)
         {
-            bool has_left_node = (node.ltChild >= 0);
-            bool has_right_node = (node.gtChild >= 0);
+            bool has_left_node = (kdNodes[node].ltChild >= 0);
+            bool has_right_node = (kdNodes[node].gtChild >= 0);
             if (has_left_node || has_right_node)
             {
                 if (has_left_node && has_right_node)
                 {
-                    KdCoord val = query[node.split_dim];
-                    KdCoord val_node = coordinates[numDimensions * node.tuple + node.split_dim];
-                    if (val < val_node) node = kdNodes[node.ltChild];
-                    else node = kdNodes[node.gtChild];
+                    split_dim = kdNodes[node].split_dim;
+                    val = query[split_dim];
+                    val_node = coordinates[numDimensions * node + split_dim];
+                    if (val < val_node) node = kdNodes[node].ltChild;
+                    else node = kdNodes[node].gtChild;
                 }
-                else if (has_right_node) node = kdNodes[node.gtChild];
-                else node = kdNodes[node.ltChild];
+                else if (has_left_node) node = kdNodes[node].ltChild;
+                else node = kdNodes[node].gtChild;
             }
             else break;
         }
@@ -254,7 +255,6 @@ public:
         CHECK_FLOAT32(points);
         TORCH_CHECK(points.size(1) == numDimensions, "dimensions mismatch");
         sint numQuery = points.size(0);
-        // torch::Tensor points_int = torch::round(torch::add(torch::mul(points, scale), offset)).to(torch::kInt32);
         torch::Tensor points_int = torch::round(points * scale + offset).to(torch::kInt32);
         KdCoord* points_int_ptr = points_int.data_ptr<KdCoord>();
         torch::Tensor indices_tensor;
