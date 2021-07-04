@@ -37,7 +37,7 @@ please check the testing script in `test/test.py`
 
 setting: build with N points, query with N points.
 
-========================
+
 N = 2**15 = 32768
 ```
 (python) num = 32768
@@ -55,7 +55,7 @@ totalTime = 0.0023  initTime = 0.0005  sortTime + removeDuplicatesTime = 0.0008 
 (python) time for querying on cpu using torch_cluster = 0.05574607849121094
 (python) there are 0 mismatches in total
 ```
-========================
+
 N = 2**18 = 262144
 ```
 (python) num = 262144
@@ -73,7 +73,7 @@ totalTime = 0.0083  initTime = 0.0016  sortTime + removeDuplicatesTime = 0.0034 
 (python) time for querying on cpu using torch_cluster = 0.6656770706176758
 (python) there are 0 mismatches in total
 ```
-========================
+
 N = 2**20 = 1048576
 ```
 (python) num = 1048576
