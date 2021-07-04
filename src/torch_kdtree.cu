@@ -15,7 +15,6 @@ namespace py = pybind11;
 ////////////////////////////////////////////////////////////////
 
 #define CHECK_CONTIGUOUS(x) TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")
-#define CHECK_INT32(x) TORCH_CHECK(x.dtype()==torch::kInt32, #x " must be int32")
 #define CHECK_FLOAT32(x) TORCH_CHECK(x.dtype()==torch::kFloat32, #x " must be float32")
 
 //////////
@@ -46,8 +45,8 @@ class TorchKDTree
 public:
     refIdx_t root;
     KdNode* kdNodes;
-    KdCoord* coordinates;
-    float* coordinates_float; // floating type for querying
+    KdCoord* coordinates;     // integer type for building tree
+    float* coordinates_float; // floating type for querying points
     sint numPoints;
     sint numDimensions;
     bool is_cuda;
@@ -263,8 +262,7 @@ public:
         CHECK_FLOAT32(points);
         TORCH_CHECK(points.size(1) == numDimensions, "dimensions mismatch");
         sint numQuery = points.size(0);
-        // std::cout << "scale = " << scale << ", offset = " << offset <<std::endl;
-        // torch::Tensor points_int = torch::round(points * scale + offset).to(torch::kInt32);
+
         float* points_ptr = points.data_ptr<float>();
         torch::Tensor indices_tensor;
 
@@ -316,7 +314,7 @@ TorchKDTree torchBuildCUDAKDTree(torch::Tensor data_float)
 
     auto val_max = std::get<0>(torch::max(data_float, 0, false));
     auto val_min = std::get<0>(torch::min(data_float, 0, false));
-    const float bound_scaling = 0.1;
+    const float bound_scaling = 0.1; // NOTE: too large this value may cause error in `cudaMemcpyFromSymbolAsync` ???
     float int_max = std::numeric_limits<KdCoord>::max() * bound_scaling;
     float int_min = std::numeric_limits<KdCoord>::min() * bound_scaling;
     auto scale  = float(int_max - int_min) / (val_max - val_min);
@@ -408,15 +406,3 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
 
 }
 
-
-
-/*
-    TODO: KDTree search @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-        https://zhuanlan.zhihu.com/p/45346117
-        https://bbs.huaweicloud.com/blogs/169897
-
-        https://stackoverflow.com/questions/34688977/how-do-i-traverse-a-kdtree-to-find-k-nearest-neighbors
-
-        https://en.wikipedia.org/wiki/K-d_tree#Nearest_neighbour_search
-
-*/
