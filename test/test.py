@@ -3,13 +3,13 @@ import os, sys; sys.path.append(os.path.join(os.path.dirname(__file__), "../buil
 import torchkdtree
 from scipy.spatial.ckdtree import cKDTreeNode
 from torch_cluster import knn
-
+from time import time
 
 # NOTE 3 * ((MAX - MIN) / K) ** 2 <= MAX     ==>   K >= 160529.75978303837
 # RANGE_MAX = torch.iinfo(torch.int32).max / 160530
 # RANGE_MIN = torch.iinfo(torch.int32).min / 160530
-RANGE_MAX = torch.iinfo(torch.int32).max / 100_000
-RANGE_MIN = torch.iinfo(torch.int32).min / 100_000
+RANGE_MAX = torch.iinfo(torch.int32).max / 160530
+RANGE_MIN = torch.iinfo(torch.int32).min / 160530
 
 
 def buildKDTree(data):
@@ -50,8 +50,10 @@ if __name__ == "__main__":
     tree = buildKDTree(data)
     tree.cpu().verify()
 
-    query = torch.randn(512, 3)
+    query = torch.randn(65536, 3)
+    t0 = time()
     index = tree.search_nearest(query) # TODO very slow, use parallel     TODO same values are wrong ???????????????????????
+    print(f"time = {time() - t0}")
     index_gt = knn(data, query, k=1)
     index_gt = index_gt[1][torch.argsort(index_gt[0])]
     wrong_loc = torch.where(index != index_gt)[0]

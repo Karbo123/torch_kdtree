@@ -162,15 +162,15 @@ public:
             bool has_right_node = (node.gtChild >= 0);
             if (has_left_node || has_right_node)
             {
-                if (!has_left_node) node = get_node(node.gtChild);
-                else if (!has_right_node) node = get_node(node.ltChild);
-                else
+                if (has_left_node && has_right_node)
                 {
                     KdCoord val = query[node.split_dim];
                     KdCoord val_node = coordinates[numDimensions * node.tuple + node.split_dim];
-                    if (val < val_node) node = get_node(node.ltChild);
-                    else node = get_node(node.gtChild);
+                    if (val < val_node) node = kdNodes[node.ltChild];
+                    else node = kdNodes[node.gtChild];
                 }
+                else if (has_right_node) node = kdNodes[node.gtChild];
+                else node = kdNodes[node.ltChild];
             }
             else break;
         }
@@ -178,6 +178,7 @@ public:
     }
 
     // squared distance
+    inline 
     KdCoord squared_distance(const KdCoord* point_a, const KdCoord* point_b)
     {
         KdCoord sum = 0;
@@ -189,13 +190,14 @@ public:
     }
 
     // to plane squared distance
+    inline
     KdCoord squared_distance_plane(const KdCoord* point, const KdNode& node)
     {
         return POW2(point[node.split_dim] - coordinates[numDimensions * node.tuple + node.split_dim]);
     }
 
     // search for a single point
-    KdNode _search_nearest(const KdCoord* point)
+    void _search_nearest(const KdCoord* point, int64_t* out)
     {
         using start_end = std::tuple<KdNode, KdNode>;
 
@@ -203,18 +205,24 @@ public:
         KdCoord dist_plane = std::numeric_limits<KdCoord>::max();
         KdCoord dist_best  = std::numeric_limits<KdCoord>::max();
         KdNode  node_best  = _search(point, *root);
-        KdNode  node_bro;
         
         // BFS
-        KdNode node_start, node_end;
         std::queue<start_end> buffer;
+        KdNode node_start, node_end, node_bro;
         buffer.emplace(start_end(*root, node_best));
         while (!buffer.empty())
         {
             std::tie(node_start, node_end) = buffer.front();
             buffer.pop();
 
-            while (true)
+            dist = squared_distance(point, coordinates + numDimensions * node_start.tuple);
+            if (dist < dist_best)
+            {
+                dist_best = dist;
+                node_best = node_start;
+            }
+
+            while (node_end.tuple != node_start.tuple)
             {
                 dist = squared_distance(point, coordinates + numDimensions * node_end.tuple);
                 if (dist < dist_best)
@@ -223,25 +231,21 @@ public:
                     node_best = node_end;
                 }
 
-                if (node_end.tuple != node_start.tuple)
+                if (node_end.brother >= 0)
                 {
-                    if (node_end.brother >= 0)
+                    dist_plane = squared_distance_plane(point, kdNodes[node_end.parent]);
+                    if (dist_plane < dist_best)
                     {
                         node_bro = kdNodes[node_end.brother];
-                        dist_plane = squared_distance_plane(point, kdNodes[node_end.parent]);
-                        if (dist_plane < dist_best) // NOTE @@@@@@@@@@@@@@@@@@@@@@@@@ SHOULD COMPARE WITH THE BEST ????????????????????????????????????
-                        {
-                            buffer.emplace(start_end(node_bro, _search(point, node_bro)));
-                        }
+                        buffer.emplace(start_end(node_bro, _search(point, node_bro)));
                     }
-
-                    node_end = kdNodes[node_end.parent]; // WHAT IS THE USE ??????????????? @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
                 }
-                else break;
+
+                node_end = kdNodes[node_end.parent]; // back track
             }
         }
 
-        return node_best;
+        *out = int64_t(node_best.tuple);
     }
 
     torch::Tensor search_nearest(torch::Tensor points)
@@ -263,9 +267,12 @@ public:
         {
             indices_tensor = torch::zeros({numQuery}, torch::kInt64);
             int64_t* raw_ptr = indices_tensor.data_ptr<int64_t>();
-            for(sint i = 0; i < numQuery; ++i) // TODO parallel @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+            
+             // 10x faster
+            #pragma omp parallel for
+            for (sint i = 0; i < numQuery; ++i)
             {
-                raw_ptr[i] = _search_nearest(points_int_ptr + i * numDimensions).tuple;
+                _search_nearest(points_int_ptr + i * numDimensions, raw_ptr + i);
             }
         }
 
@@ -364,10 +371,10 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         .def_readonly("is_cuda", &TorchKDTree::is_cuda)
         .def_readonly("scale", &TorchKDTree::scale)
         .def_readonly("offset", &TorchKDTree::offset)
+        .def_property_readonly("root", &TorchKDTree::get_root)
         .def("cpu", &TorchKDTree::cpu)
         .def("verify", &TorchKDTree::verify)
-        .def("get_root", &TorchKDTree::get_root)
-        .def("get_node", &TorchKDTree::get_node)
+        .def("node", &TorchKDTree::get_node)
         .def("__repr__", &TorchKDTree::__repr__)
         .def("search_nearest", &TorchKDTree::search_nearest);
 
