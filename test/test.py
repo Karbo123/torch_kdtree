@@ -6,8 +6,10 @@ from torch_cluster import knn
 
 
 # NOTE 3 * ((MAX - MIN) / K) ** 2 <= MAX     ==>   K >= 160529.75978303837
-RANGE_MAX = torch.iinfo(torch.int32).max / 160530
-RANGE_MIN = torch.iinfo(torch.int32).min / 160530
+# RANGE_MAX = torch.iinfo(torch.int32).max / 160530
+# RANGE_MIN = torch.iinfo(torch.int32).min / 160530
+RANGE_MAX = torch.iinfo(torch.int32).max / 100_000
+RANGE_MIN = torch.iinfo(torch.int32).min / 100_000
 
 
 def buildKDTree(data):
