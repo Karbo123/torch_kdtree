@@ -9,6 +9,8 @@ We are now working on making a new function of querying point on CUDA device, wh
 
 Functions currently implemented:
 - nearest search (CPU)
+- knn search (CPU)
+- radius search (CPU)
 
 
 **NOTE** this repo is still under heavy development
@@ -31,9 +33,10 @@ cmake .. \
 
 # usage
 
-please check the testing script in `test/test.py`
+please check the testing script in `test/` folder.
 
-# benchmarking
+
+# benchmarking (nearest search)
 
 setting: build with N points, query with N points.
 
