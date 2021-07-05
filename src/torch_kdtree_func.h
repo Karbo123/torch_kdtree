@@ -74,8 +74,8 @@
  * this approach sacrifices the generality of building the k-d tree for points of any
  * number of dimensions.
  */
-#ifndef TORCH_KDTREE_H_
-#define TORCH_KDTREE_H_
+#ifndef TORCH_KDTREE_FUNC_H_
+#define TORCH_KDTREE_FUNC_H_
 
 #include <stdbool.h>
 #include <stdlib.h>

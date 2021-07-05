@@ -6,7 +6,7 @@ find_package(Python3 3.7 REQUIRED Interpreter Development)
 find_library(TORCH_PYTHON_LIBRARY torch_python PATHS "${TORCH_INSTALL_PREFIX}/lib")
 
 set(CMAKE_BUILD_TYPE Release)
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --expt-relaxed-constexpr -w -Xptxas='-w' -Xcompiler='-fopenmp'")
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --expt-relaxed-constexpr -w -Xptxas='-w' -Xcompiler='-fopenmp -funroll-loops'")
 
 file(GLOB COMMON_SOURCES 
           ${CMAKE_SOURCE_DIR}/src/buildKdTree.cu
