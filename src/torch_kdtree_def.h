@@ -55,7 +55,10 @@ public:
 
     ///////////////////////////////////////////////////////////////////
     // radius search
-    // TODO
+    template<int dim>
+    void _search_radius(const float* point, float radius2, std::vector<sint>& out_);
+
+    std::tuple<torch::Tensor, torch::Tensor> search_radius(torch::Tensor points, float radius);
 
 };
 

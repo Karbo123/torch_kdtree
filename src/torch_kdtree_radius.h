@@ -1,34 +1,18 @@
 
-#ifndef TORCH_KDTREE_KNN_H_
-#define TORCH_KDTREE_KNN_H_
-
-class cmp_dist_node_less
-{
-    using dist_node = std::tuple<float, refIdx_t>;
-
-public:
-    bool operator() (const dist_node& a, const dist_node& b)
-    {
-        return std::get<0>(a) < std::get<0>(b);
-    };
-};
+#ifndef TORCH_KDTREE_RADIUS_H_
+#define TORCH_KDTREE_RADIUS_H_
 
 
 // search for a single point
 template<int dim>
-void TorchKDTree::_search_knn(const float* point, sint k, int64_t* out_)
+void TorchKDTree::_search_radius(const float* point, float radius2, std::vector<sint>& out_)
 {
     using start_end = std::tuple<refIdx_t, refIdx_t>;
-    using dist_node = std::tuple<float, refIdx_t>;
 
     float dist       = std::numeric_limits<float>::max();
     float dist_plane = std::numeric_limits<float>::max();
     refIdx_t node_bro;
 
-    // create a queue
-    const auto _init_cont = std::vector<dist_node>(k, dist_node(std::numeric_limits<float>::max(), -1));
-    auto heap_best = std::priority_queue<dist_node, std::vector<dist_node>, cmp_dist_node_less> (_init_cont.begin(), _init_cont.end());
-    
     // BFS
     std::queue<start_end> buffer;
     refIdx_t node_start, node_end;
@@ -44,10 +28,9 @@ void TorchKDTree::_search_knn(const float* point, sint k, int64_t* out_)
         {
             // update if current node is better
             dist = distance<dim>(point, coordinates_float + dim * kdNodes[node_end].tuple);
-            if (dist < std::get<0>(heap_best.top())) // exists a smaller value
+            if (dist < radius2) // exists a smaller value
             {
-                heap_best.pop(); // remove the largest elem from heap
-                heap_best.emplace(dist_node(dist, node_end)); // record the best
+                out_.push_back(kdNodes[node_end].tuple);
             }
 
             if (node_end != node_start)
@@ -57,7 +40,7 @@ void TorchKDTree::_search_knn(const float* point, sint k, int64_t* out_)
                 {
                     // if intersect with plane, search another branch
                     dist_plane = distance_plane<dim>(point, kdNodes[node_end].parent);
-                    if (dist_plane < std::get<0>(heap_best.top()))
+                    if (dist_plane < radius2)
                     {
                         buffer.emplace(start_end(node_bro, _search(point, node_bro)));
                     }
@@ -70,30 +53,22 @@ void TorchKDTree::_search_knn(const float* point, sint k, int64_t* out_)
         }
     }
 
-    // copy results
-    for (sint i = 0; i < k; ++i)
-    {
-        out_[k - 1 - i] = int64_t(kdNodes[std::get<1>(heap_best.top())].tuple); // out_[0] is the nearest, out_[k - 1] is the farthest
-        heap_best.pop();
-    }
+    // sort
+    std::sort(out_.begin(), out_.end());
 }
+
 
 
 // search for a single point
 template<>
-void TorchKDTree::_search_knn<0>(const float* point, sint k, int64_t* out_)
+void TorchKDTree::_search_radius<0>(const float* point, float radius2, std::vector<sint>& out_)
 {
     using start_end = std::tuple<refIdx_t, refIdx_t>;
-    using dist_node = std::tuple<float, refIdx_t>;
 
     float dist       = std::numeric_limits<float>::max();
     float dist_plane = std::numeric_limits<float>::max();
     refIdx_t node_bro;
 
-    // create a queue
-    const auto _init_cont = std::vector<dist_node>(k, dist_node(std::numeric_limits<float>::max(), -1));
-    auto heap_best = std::priority_queue<dist_node, std::vector<dist_node>, cmp_dist_node_less> (_init_cont.begin(), _init_cont.end());
-    
     // BFS
     std::queue<start_end> buffer;
     refIdx_t node_start, node_end;
@@ -109,10 +84,9 @@ void TorchKDTree::_search_knn<0>(const float* point, sint k, int64_t* out_)
         {
             // update if current node is better
             dist = distance<0>(point, coordinates_float + numDimensions * kdNodes[node_end].tuple);
-            if (dist < std::get<0>(heap_best.top())) // exists a smaller value
+            if (dist < radius2) // exists a smaller value
             {
-                heap_best.pop(); // remove the largest elem from heap
-                heap_best.emplace(dist_node(dist, node_end)); // record the best
+                out_.push_back(kdNodes[node_end].tuple);
             }
 
             if (node_end != node_start)
@@ -122,7 +96,7 @@ void TorchKDTree::_search_knn<0>(const float* point, sint k, int64_t* out_)
                 {
                     // if intersect with plane, search another branch
                     dist_plane = distance_plane<0>(point, kdNodes[node_end].parent);
-                    if (dist_plane < std::get<0>(heap_best.top()))
+                    if (dist_plane < radius2)
                     {
                         buffer.emplace(start_end(node_bro, _search(point, node_bro)));
                     }
@@ -135,16 +109,13 @@ void TorchKDTree::_search_knn<0>(const float* point, sint k, int64_t* out_)
         }
     }
 
-    // copy results
-    for (sint i = 0; i < k; ++i)
-    {
-        out_[k - 1 - i] = int64_t(kdNodes[std::get<1>(heap_best.top())].tuple); // out_[0] is the nearest, out_[k - 1] is the farthest
-        heap_best.pop();
-    }
+    // sort
+    std::sort(out_.begin(), out_.end());
 }
 
 
-torch::Tensor TorchKDTree::search_knn(torch::Tensor points, sint k)
+
+std::tuple<torch::Tensor, torch::Tensor> TorchKDTree::search_radius(torch::Tensor points, float radius)
 {
     CHECK_CONTIGUOUS(points);
     CHECK_FLOAT32(points);
@@ -152,7 +123,9 @@ torch::Tensor TorchKDTree::search_knn(torch::Tensor points, sint k)
     sint numQuery = points.size(0);
 
     float* points_ptr = points.data_ptr<float>();
-    torch::Tensor indices_tensor;
+    torch::Tensor indices_tensor, batch_tensor;
+
+    float radius2 = POW2(radius);
 
     if (is_cuda)
     {
@@ -160,69 +133,90 @@ torch::Tensor TorchKDTree::search_knn(torch::Tensor points, sint k)
     }
     else
     {
-        indices_tensor = torch::zeros({numQuery, k}, torch::kInt64);
-        int64_t* raw_ptr = indices_tensor.data_ptr<int64_t>();
-        
+        auto vec_of_vec = std::vector<std::vector<sint>>(numQuery);
+
         if (numDimensions > 8 && 
             numDimensions != 16 && 
             numDimensions != 32)
         {
             #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_knn<0>(points_ptr + i * numDimensions, k, raw_ptr + i * k);
+            for (sint i = 0; i < numQuery; ++i) _search_radius<0>(points_ptr + i * numDimensions, radius2, vec_of_vec[i]);
         }
         else if (numDimensions == 1)
         {
             #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_knn<1>(points_ptr + i * numDimensions, k, raw_ptr + i * k);
+            for (sint i = 0; i < numQuery; ++i) _search_radius<1>(points_ptr + i * numDimensions, radius2, vec_of_vec[i]);
         }
         else if (numDimensions == 2)
         {
             #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_knn<2>(points_ptr + i * numDimensions, k, raw_ptr + i * k);
+            for (sint i = 0; i < numQuery; ++i) _search_radius<2>(points_ptr + i * numDimensions, radius2, vec_of_vec[i]);
         }
         else if (numDimensions == 3)
         {
             #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_knn<3>(points_ptr + i * numDimensions, k, raw_ptr + i * k);
+            for (sint i = 0; i < numQuery; ++i) _search_radius<3>(points_ptr + i * numDimensions, radius2, vec_of_vec[i]);
         }
         else if (numDimensions == 4)
         {
             #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_knn<4>(points_ptr + i * numDimensions, k, raw_ptr + i * k);
+            for (sint i = 0; i < numQuery; ++i) _search_radius<4>(points_ptr + i * numDimensions, radius2, vec_of_vec[i]);
         }
         else if (numDimensions == 5)
         {
             #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_knn<5>(points_ptr + i * numDimensions, k, raw_ptr + i * k);
+            for (sint i = 0; i < numQuery; ++i) _search_radius<5>(points_ptr + i * numDimensions, radius2, vec_of_vec[i]);
         }
         else if (numDimensions == 6)
         {
             #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_knn<6>(points_ptr + i * numDimensions, k, raw_ptr + i * k);
+            for (sint i = 0; i < numQuery; ++i) _search_radius<6>(points_ptr + i * numDimensions, radius2, vec_of_vec[i]);
         }
         else if (numDimensions == 7)
         {
             #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_knn<7>(points_ptr + i * numDimensions, k, raw_ptr + i * k);
+            for (sint i = 0; i < numQuery; ++i) _search_radius<7>(points_ptr + i * numDimensions, radius2, vec_of_vec[i]);
         }
         else if (numDimensions == 8)
         {
             #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_knn<8>(points_ptr + i * numDimensions, k, raw_ptr + i * k);
+            for (sint i = 0; i < numQuery; ++i) _search_radius<8>(points_ptr + i * numDimensions, radius2, vec_of_vec[i]);
         }
         else if (numDimensions == 16)
         {
             #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_knn<16>(points_ptr + i * numDimensions, k, raw_ptr + i * k);
+            for (sint i = 0; i < numQuery; ++i) _search_radius<16>(points_ptr + i * numDimensions, radius2, vec_of_vec[i]);
         }
         else if (numDimensions == 32)
         {
             #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_knn<32>(points_ptr + i * numDimensions, k, raw_ptr + i * k);
+            for (sint i = 0; i < numQuery; ++i) _search_radius<32>(points_ptr + i * numDimensions, radius2, vec_of_vec[i]);
+        }
+
+        std::vector<sint> ind_size(numQuery);
+        std::transform(vec_of_vec.begin(), vec_of_vec.end(), ind_size.begin(), [](const std::vector<sint>& vec){return sint(vec.size());});
+
+        std::vector<sint> sum_ind_size(numQuery + 1); sum_ind_size[0] = 0;
+        std::partial_sum(ind_size.begin(), ind_size.end(), sum_ind_size.begin() + 1, std::plus<sint>());
+        sint sum_size = sum_ind_size.back();
+        sum_ind_size.pop_back();
+
+        indices_tensor = torch::zeros({sum_size}, torch::kInt64);
+        int64_t* indices_tensor_ptr = indices_tensor.data_ptr<int64_t>();
+        batch_tensor = torch::zeros({sum_size}, torch::kInt64);
+        int64_t* batch_tensor_ptr = batch_tensor.data_ptr<int64_t>();
+
+        #pragma omp parallel for
+        for (sint i = 0; i < numQuery; ++i)
+        {
+            sint length = vec_of_vec[i].size();
+            sint start_index = sum_ind_size[i];
+            std::copy(vec_of_vec[i].begin(), vec_of_vec[i].end(), indices_tensor_ptr + start_index); // index
+            std::fill(batch_tensor_ptr + start_index, batch_tensor_ptr + start_index + length, i);   // batch
         }
     }
 
-    return indices_tensor;
+    return std::make_tuple(indices_tensor, batch_tensor);
 }
 
 #endif

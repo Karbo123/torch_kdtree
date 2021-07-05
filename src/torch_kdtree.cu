@@ -4,6 +4,7 @@
 #include "torch_kdtree_def.h"
 #include "torch_kdtree_nearest.h"
 #include "torch_kdtree_knn.h"
+#include "torch_kdtree_radius.h"
 
 
 /*
@@ -110,7 +111,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         .def("cpu", &TorchKDTree::cpu)
         .def("verify", &TorchKDTree::verify)
         .def("search_nearest", &TorchKDTree::search_nearest)
-        .def("search_knn", &TorchKDTree::search_knn);
+        .def("search_knn", &TorchKDTree::search_knn)
+        .def("search_radius", &TorchKDTree::search_radius);
 
 }
 
