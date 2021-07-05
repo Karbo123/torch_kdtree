@@ -1,18 +1,18 @@
 import torch
 import os, sys; sys.path.append(os.path.join(os.path.dirname(__file__), "../build"))
-import torchkdtree
+import torch_kdtree
 from torch_cluster import knn
 from time import time
 
 
 if __name__ == "__main__":
-    NUM = int(2**20)
+    NUM = int(2**16)
     print(f"(python) num = {NUM}")
 
     ########################################
     data = torch.randn(NUM, 3) * 1000
     t0 = time()
-    tree = torchkdtree.torchBuildCUDAKDTree(data)
+    tree = torch_kdtree.torchBuildCUDAKDTree(data)
     tree.cpu().verify()
     print(f"(python) time for building kdtree, moving to cpu, and verification = {time() - t0}")
 

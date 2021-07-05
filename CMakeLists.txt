@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
-project(torchkdtree LANGUAGES CXX CUDA)
+project(torch_kdtree LANGUAGES CXX CUDA)
 
 find_package(Torch 1.8 REQUIRED)
 find_package(Python3 3.7 REQUIRED Interpreter Development)
