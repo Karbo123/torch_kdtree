@@ -95,3 +95,10 @@ totalTime = 0.0284  initTime = 0.0037  sortTime + removeDuplicatesTime = 0.0091 
 (python) there are 0 mismatches in total
 ```
 
+# TODO
+
+- superKeyCompare should use float32 as its datatype
+- create a work buffer, use BFS on CUDA to do _traverse_and_assign()
+
+other ref: [Traversal on CUDA](https://developer.nvidia.com/blog/thinking-parallel-part-ii-tree-traversal-gpu/)
+
