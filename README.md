@@ -36,7 +36,7 @@ cmake .. \
 please check the testing script in `test/` folder.
 
 
-# benchmarking (nearest search)
+# benchmarking
 
 setting: build with 262144 points, query with 262144 points.
 
