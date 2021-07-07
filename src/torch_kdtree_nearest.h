@@ -28,7 +28,7 @@ void TorchKDTree::_search_nearest(const float* point, int64_t* out_)
         while (true)
         {
             // update if current node is better
-            dist = distance<dim>(point, coordinates_float + dim * kdNodes[node_end].tuple);
+            dist = distance<dim>(point, coordinates + dim * kdNodes[node_end].tuple);
             if (dist < dist_best)
             {
                 dist_best = dist;
@@ -85,7 +85,7 @@ void TorchKDTree::_search_nearest<0>(const float* point, int64_t* out_)
         while (true)
         {
             // update if current node is better
-            dist = distance<0>(point, coordinates_float + numDimensions * kdNodes[node_end].tuple);
+            dist = distance<0>(point, coordinates + numDimensions * kdNodes[node_end].tuple);
             if (dist < dist_best)
             {
                 dist_best = dist;

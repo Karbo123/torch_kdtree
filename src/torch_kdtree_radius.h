@@ -27,7 +27,7 @@ void TorchKDTree::_search_radius(const float* point, float radius2, std::vector<
         while (true)
         {
             // update if current node is better
-            dist = distance<dim>(point, coordinates_float + dim * kdNodes[node_end].tuple);
+            dist = distance<dim>(point, coordinates + dim * kdNodes[node_end].tuple);
             if (dist < radius2) // exists a smaller value
             {
                 out_.push_back(kdNodes[node_end].tuple);
@@ -83,7 +83,7 @@ void TorchKDTree::_search_radius<0>(const float* point, float radius2, std::vect
         while (true)
         {
             // update if current node is better
-            dist = distance<0>(point, coordinates_float + numDimensions * kdNodes[node_end].tuple);
+            dist = distance<0>(point, coordinates + numDimensions * kdNodes[node_end].tuple);
             if (dist < radius2) // exists a smaller value
             {
                 out_.push_back(kdNodes[node_end].tuple);

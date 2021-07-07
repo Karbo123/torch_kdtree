@@ -20,29 +20,15 @@ TorchKDTree torchBuildCUDAKDTree(torch::Tensor data_float)
     sint numPoints = data_float.size(0);
     sint numDimensions = data_float.size(1);
 
-    // auto val_max = std::get<0>(torch::max(data_float, 0, false));
-    // auto val_min = std::get<0>(torch::min(data_float, 0, false));
-    // const float bound_scaling = 0.1; // NOTE: too large this value may cause error in `cudaMemcpyFromSymbolAsync` ???
-    // float int_max = std::numeric_limits<KdCoord>::max() * bound_scaling;
-    // float int_min = std::numeric_limits<KdCoord>::min() * bound_scaling;
-    // auto scale  = float(int_max - int_min) / (val_max - val_min);
-    // auto offset = -val_min * scale + int_min;
-    // auto data = torch::round(data_float * scale + offset).to(torch::kInt32);
-
     TorchKDTree tree(numPoints, numDimensions);
-    // if (data.is_cuda())
     if (data_float.is_cuda())
     {
-        // KdCoord* data_ptr = data.data_ptr<KdCoord>();
-        // gpuErrchk(cudaMemcpy(tree.coordinates, data_ptr, numPoints * numDimensions * sizeof(KdCoord), cudaMemcpyDeviceToHost)); // make a copy
         float* float_ptr = data_float.data_ptr<float>();
-        gpuErrchk(cudaMemcpy(tree.coordinates_float, float_ptr, numPoints * numDimensions * sizeof(float), cudaMemcpyDeviceToHost)); // make a copy
+        gpuErrchk(cudaMemcpy(tree.coordinates, float_ptr, numPoints * numDimensions * sizeof(float), cudaMemcpyDeviceToHost)); // make a copy
     } else
     {
-        // KdCoord* data_ptr = data.data_ptr<KdCoord>();
-        // std::memcpy(tree.coordinates, data_ptr, numPoints * numDimensions * sizeof(KdCoord)); // make a copy
         float* float_ptr = data_float.data_ptr<float>();
-        std::memcpy(tree.coordinates_float, float_ptr, numPoints * numDimensions * sizeof(float)); // make a copy
+        std::memcpy(tree.coordinates, float_ptr, numPoints * numDimensions * sizeof(float)); // make a copy
     }
 
     // initialize environment
@@ -74,7 +60,7 @@ TorchKDTree torchBuildCUDAKDTree(torch::Tensor data_float)
     // create the tree
     // NOTE:
     // - kdNodes unchanges
-    KdNode* root_ptr = KdNode::createKdTree(tree.kdNodes, /*tree.coordinates*/ tree.coordinates_float, numDimensions, numPoints);
+    KdNode* root_ptr = KdNode::createKdTree(tree.kdNodes, tree.coordinates, numDimensions, numPoints);
     tree.root = refIdx_t(root_ptr - tree.kdNodes);
 
     return std::move(tree); // no copy

@@ -6,8 +6,7 @@ class TorchKDTree
 public:
     refIdx_t root;
     KdNode* kdNodes;
-    // KdCoord* coordinates;     // integer type for building tree
-    float* coordinates_float; // floating type for querying points
+    float* coordinates;
     sint numPoints;
     sint numDimensions;
     bool is_cuda;
@@ -70,9 +69,8 @@ TorchKDTree::TorchKDTree(sint _numPoints, sint _numDimensions):
                             is_cuda(true)
 {
     kdNodes = new KdNode[_numPoints];
-    // coordinates = new KdCoord[_numPoints * _numDimensions];
-    coordinates_float = new float[_numPoints * _numDimensions];
-    if (kdNodes == nullptr || /*coordinates == nullptr ||*/ coordinates_float == nullptr)
+    coordinates = new float[_numPoints * _numDimensions];
+    if (kdNodes == nullptr || coordinates == nullptr)
     {
         throw runtime_error("error when allocating host memory");
     }
@@ -83,8 +81,7 @@ TorchKDTree::TorchKDTree(TorchKDTree&& _tree)
 {
     root = _tree.root; _tree.root = -1;
     kdNodes = _tree.kdNodes; _tree.kdNodes = nullptr;
-    // coordinates = _tree.coordinates; _tree.coordinates = nullptr;
-    coordinates_float = _tree.coordinates_float; _tree.coordinates_float = nullptr;
+    coordinates = _tree.coordinates; _tree.coordinates = nullptr;
     numPoints = _tree.numPoints; _tree.numPoints = 0;
     numDimensions = _tree.numDimensions;
     is_cuda = _tree.is_cuda;
@@ -93,8 +90,7 @@ TorchKDTree::TorchKDTree(TorchKDTree&& _tree)
 TorchKDTree::~TorchKDTree()
 {
     delete[] kdNodes;
-    // delete[] coordinates;
-    delete[] coordinates_float;
+    delete[] coordinates;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -115,7 +111,7 @@ TorchKDTree& TorchKDTree::cpu()
     if (is_cuda)
     {
         // read the KdTree back from GPU
-        Gpu::getKdTreeResults(kdNodes, /*coordinates*/ coordinates_float, numPoints, numDimensions);
+        Gpu::getKdTreeResults(kdNodes, coordinates, numPoints, numDimensions);
         // now kdNodes have values
     }
 
@@ -131,7 +127,7 @@ TorchKDTree& TorchKDTree::cpu()
 sint TorchKDTree::verify()
 {
     if (is_cuda) throw runtime_error("CUDA-KDTree cannot be verified from host");
-    sint numberOfNodes = kdNodes[root].verifyKdTree(kdNodes, /*coordinates*/ coordinates_float, numDimensions, 0); // number of nodes on host
+    sint numberOfNodes = kdNodes[root].verifyKdTree(kdNodes, coordinates, numDimensions, 0); // number of nodes on host
     return numberOfNodes;
 }
 
@@ -191,7 +187,7 @@ refIdx_t TorchKDTree::_search(const float* query, refIdx_t node) // searching do
             if (has_left_node && has_right_node)
             {
                 val = query[node_current.split_dim];
-                val_node = coordinates_float[numDimensions * node_current.tuple + node_current.split_dim];
+                val_node = coordinates[numDimensions * node_current.tuple + node_current.split_dim];
                 if (val < val_node) node = node_current.ltChild;
                 else node = node_current.gtChild;
             }
@@ -225,14 +221,14 @@ template<int dim> inline
 float TorchKDTree::distance_plane(const float* point, refIdx_t node)
 {
     const KdNode& node_plane = kdNodes[node];
-    return POW2(point[node_plane.split_dim] - coordinates_float[dim * node_plane.tuple + node_plane.split_dim]);
+    return POW2(point[node_plane.split_dim] - coordinates[dim * node_plane.tuple + node_plane.split_dim]);
 }
 
 template<> inline
 float TorchKDTree::distance_plane<0>(const float* point, refIdx_t node)
 {
     const KdNode& node_plane = kdNodes[node];
-    return POW2(point[node_plane.split_dim] - coordinates_float[numDimensions * node_plane.tuple + node_plane.split_dim]);
+    return POW2(point[node_plane.split_dim] - coordinates[numDimensions * node_plane.tuple + node_plane.split_dim]);
 }
 
 
