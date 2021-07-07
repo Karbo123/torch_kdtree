@@ -52,9 +52,9 @@ using namespace std;
 #include "Gpu.h"
 
 
-__device__ sint superKeyCompareB(const KdCoord *a, const KdCoord *b, const sint p, const sint dim)
+__device__ KdCoord superKeyCompareB(const KdCoord *a, const KdCoord *b, const sint p, const sint dim)
 {
-	sint diff = a[p] - b[p];
+	KdCoord diff = a[p] - b[p];
 	for (sint i = 1; diff == 0 && i < dim; i++) {
 		sint r = i + p;
 		r = (r < dim) ? r : r - dim;
@@ -63,9 +63,9 @@ __device__ sint superKeyCompareB(const KdCoord *a, const KdCoord *b, const sint 
 	return diff;
 }
 
-__device__ sint superKeyComparePD(const KdCoord ap, const KdCoord bp, const KdCoord *a, const KdCoord *b, const sint p, const sint dim)
+__device__ KdCoord superKeyComparePD(const KdCoord ap, const KdCoord bp, const KdCoord *a, const KdCoord *b, const sint p, const sint dim)
 {
-	sint diff = ap - bp;
+	KdCoord diff = ap - bp;
 	for (sint i = 1; diff == 0 && i < dim; i++) {
 		sint r = i + p;
 		r = (r < dim) ? r : r - dim;
@@ -321,7 +321,7 @@ __device__ void cuSmallPartition( const __restrict__ KdCoord coords[],
 
 	KdCoord divVal = coords[divRef*dim+p];
 
-	sint  cmp = 0;
+	KdCoord cmp = 0;
 	uint maskGEme = ((1 << thrdIdx) - 1);
 
 	uint ref;
@@ -462,7 +462,7 @@ __device__ void cuSinglePartition( const __restrict__ KdCoord coords[], refIdx_t
 	uint sharedBase = 2 * warpSize *  (((pos - thrdIdx)/warpSize) % warpsPerBlock);
 	uint sharedAddrMask = (2*warpSize)-1;
 
-	sint  cmp = 0;
+	KdCoord cmp = 0;
 	uint maskGEme = ((1 << thrdIdx) - 1);
 
 	//  Now start looping

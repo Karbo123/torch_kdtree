@@ -71,7 +71,7 @@ KdNode Gpu::gpu1stNode;
  * Returns a long that is positive if a>b, 0 if equal an negative is a<b
  */
 
-__device__ long cuSuperKeyCompare(const KdCoord a[], const KdCoord b[], const sint p, const sint dim)
+__device__ KdCoord cuSuperKeyCompare(const KdCoord a[], const KdCoord b[], const sint p, const sint dim)
 {
 	KdCoord diff=0;
 	for (sint i = 0; i < dim; i++) {
@@ -100,7 +100,7 @@ __device__ long cuSuperKeyCompare(const KdCoord a[], const KdCoord b[], const si
  * Returns a long that is positive if a>b, 0 if equal an negative is a<b
  */
 
-__device__ long cuSuperKeyCompareFirstDim(const KdCoord ap, const KdCoord bp, const KdCoord *a, const KdCoord *b, const sint p, const sint dim)
+__device__ KdCoord cuSuperKeyCompareFirstDim(const KdCoord ap, const KdCoord bp, const KdCoord *a, const KdCoord *b, const sint p, const sint dim)
 {
 	KdCoord diff = ap - bp;
 	for (sint i = 1; diff == 0 && i < dim; i++) {
@@ -758,7 +758,7 @@ __global__ void cuVerifyKdTree(const KdNode kdNodes[], const KdCoord coord[], si
 			refIdx_t child = kdNodes[node].gtChild; // Save off the gt node
 			nextRefs[i*2+1] = child; // Put the child in the refs array for the next loop
 			if (child != -1) { // Check for proper comparison
-				sint cmp = cuSuperKeyCompare(coord+kdNodes[child].tuple*dim, coord+kdNodes[node].tuple*dim, p, dim);
+				KdCoord cmp = cuSuperKeyCompare(coord+kdNodes[child].tuple*dim, coord+kdNodes[node].tuple*dim, p, dim);
 				if (cmp <= 0) {  // gtChild .le. self is an error so indicate that.
 					//	  nextRefs[i*2+1] = -node;  // Overwrite the child with the error code
 					d_verifyKdTreeError = 1; // and mark the error
@@ -769,7 +769,7 @@ __global__ void cuVerifyKdTree(const KdNode kdNodes[], const KdCoord coord[], si
 			child = kdNodes[node].ltChild;
 			nextRefs[i*2] = child; // Put the child in the refs array for the next loop
 			if (child != -1) {
-				sint cmp = cuSuperKeyCompare(coord+kdNodes[child].tuple*dim, coord+kdNodes[node].tuple*dim, p, dim);
+				KdCoord cmp = cuSuperKeyCompare(coord+kdNodes[child].tuple*dim, coord+kdNodes[node].tuple*dim, p, dim);
 				if (cmp >= 0) {  // gtChild .ge. self is an error so indicate that.
 					//	  nextRefs[i*2] = -node;  // Overwrite the child with the error code
 					d_verifyKdTreeError = 1;

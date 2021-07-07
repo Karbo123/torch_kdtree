@@ -48,7 +48,7 @@
 #include <stdint.h>
 using std::setprecision;
 
-typedef int32_t KdCoord;
+typedef float KdCoord;
 typedef int32_t refIdx_t;
 
 typedef int32_t sint;

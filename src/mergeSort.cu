@@ -157,9 +157,9 @@ template<uint sortDir> static inline __device__ uint binarySearchExclusive(uint 
 
 __device__ int skc_error;
 
-__device__ sint superKeyCompareFirstDimSmpl(const KdCoord ap, const KdCoord bp, const KdCoord *a, const KdCoord *b, const sint p, const sint dim)
+__device__ KdCoord superKeyCompareFirstDimSmpl(const KdCoord ap, const KdCoord bp, const KdCoord *a, const KdCoord *b, const sint p, const sint dim)
 {
-	sint diff = ap - bp;
+	KdCoord diff = ap - bp;
 	for (sint i = 1; diff == 0 && i < dim; i++) {
 		sint r = i + p;
 		r = (r < dim) ? r : r - dim;
@@ -226,7 +226,7 @@ template<uint sortDir> static inline __device__ uint binarySearchVal(bool inclus
 	for (; stride > 0; stride >>= 1)
 	{
 		uint newPos = umin(pos + stride, L);
-		sint comp = superKeyCompareFirstDimSmpl(inVal[newPos - 1], val, coord+inRef[newPos - 1]*dim, coord+ref*dim, p, dim);
+		KdCoord comp = superKeyCompareFirstDimSmpl(inVal[newPos - 1], val, coord+inRef[newPos - 1]*dim, coord+ref*dim, p, dim);
 		if ((sortDir && (comp < 0)) || (!sortDir && (comp > 0)) || (inclusive && (comp == 0)))
 		{
 			pos = newPos;

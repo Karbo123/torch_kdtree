@@ -52,9 +52,9 @@ using namespace std;
 #include "removeDups_common.h"
 
 
-__device__ sint superKeyCompareFirstDimSmplA(const KdCoord ap, const KdCoord bp, const KdCoord *a, const KdCoord *b, const sint p, const sint dim)
+__device__ KdCoord superKeyCompareFirstDimSmplA(const KdCoord ap, const KdCoord bp, const KdCoord *a, const KdCoord *b, const sint p, const sint dim)
 {
-	sint diff = ap - bp;
+	KdCoord diff = ap - bp;
 	for (sint i = 1; diff == 0 && i < dim; i++) {
 		sint r = i + p;
 		r = (r < dim) ? r : r - dim;
@@ -175,7 +175,7 @@ __global__ void cuRemoveDups(KdCoord coords[], refIdx_t refoutx[], KdCoord valou
 	uint sharedBase = 2 * warpSize *  (warpIndex % warpsPerBlock);
 	uint sharedAddrMask = (2*warpSize)-1;
 
-	sint  cmp = 0;
+	KdCoord cmp = 0;
 	uint maskGEme = ((1 << thrdIdx) - 1);
 	uint shflMask = 0;
 	//  First handle the special conditions for the initial 32 words

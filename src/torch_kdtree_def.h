@@ -6,7 +6,7 @@ class TorchKDTree
 public:
     refIdx_t root;
     KdNode* kdNodes;
-    KdCoord* coordinates;     // integer type for building tree
+    // KdCoord* coordinates;     // integer type for building tree
     float* coordinates_float; // floating type for querying points
     sint numPoints;
     sint numDimensions;
@@ -70,9 +70,9 @@ TorchKDTree::TorchKDTree(sint _numPoints, sint _numDimensions):
                             is_cuda(true)
 {
     kdNodes = new KdNode[_numPoints];
-    coordinates = new KdCoord[_numPoints * _numDimensions];
+    // coordinates = new KdCoord[_numPoints * _numDimensions];
     coordinates_float = new float[_numPoints * _numDimensions];
-    if (kdNodes == nullptr || coordinates == nullptr || coordinates_float == nullptr)
+    if (kdNodes == nullptr || /*coordinates == nullptr ||*/ coordinates_float == nullptr)
     {
         throw runtime_error("error when allocating host memory");
     }
@@ -83,7 +83,7 @@ TorchKDTree::TorchKDTree(TorchKDTree&& _tree)
 {
     root = _tree.root; _tree.root = -1;
     kdNodes = _tree.kdNodes; _tree.kdNodes = nullptr;
-    coordinates = _tree.coordinates; _tree.coordinates = nullptr;
+    // coordinates = _tree.coordinates; _tree.coordinates = nullptr;
     coordinates_float = _tree.coordinates_float; _tree.coordinates_float = nullptr;
     numPoints = _tree.numPoints; _tree.numPoints = 0;
     numDimensions = _tree.numDimensions;
@@ -93,7 +93,7 @@ TorchKDTree::TorchKDTree(TorchKDTree&& _tree)
 TorchKDTree::~TorchKDTree()
 {
     delete[] kdNodes;
-    delete[] coordinates;
+    // delete[] coordinates;
     delete[] coordinates_float;
 }
 
@@ -115,7 +115,7 @@ TorchKDTree& TorchKDTree::cpu()
     if (is_cuda)
     {
         // read the KdTree back from GPU
-        Gpu::getKdTreeResults(kdNodes, coordinates, numPoints, numDimensions);
+        Gpu::getKdTreeResults(kdNodes, /*coordinates*/ coordinates_float, numPoints, numDimensions);
         // now kdNodes have values
     }
 
@@ -131,7 +131,7 @@ TorchKDTree& TorchKDTree::cpu()
 sint TorchKDTree::verify()
 {
     if (is_cuda) throw runtime_error("CUDA-KDTree cannot be verified from host");
-    sint numberOfNodes = kdNodes[root].verifyKdTree(kdNodes, coordinates, numDimensions, 0); // number of nodes on host
+    sint numberOfNodes = kdNodes[root].verifyKdTree(kdNodes, /*coordinates*/ coordinates_float, numDimensions, 0); // number of nodes on host
     return numberOfNodes;
 }
 
