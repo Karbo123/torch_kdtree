@@ -38,60 +38,48 @@ please check the testing script in `test/` folder.
 
 # benchmarking (nearest search)
 
-setting: build with N points, query with N points.
+setting: build with 262144 points, query with 262144 points.
 
-
-N = 2**15 = 32768
-```
-(python) num = 32768
-Checking for multiple GPUs...
-CUDA-capable device count: 1
-> GPU0 = "GeForce RTX 2080 Ti" IS  capable of Peer-to-Peer (P2P)
-numPoints=32768, numDimensions=3, numThreads=512, numBlocks=32, numGPUs=1
-0 equal nodes removed. 
-Number of nodes = 32768
-totalTime = 0.0023  initTime = 0.0005  sortTime + removeDuplicatesTime = 0.0008  kdTime = 0.0005  verifyTime = 0.0003
-
-(python) time for building kdtree, moving to cpu, and verification = 0.14187383651733398
-(python) time for querying on cpu using multithreads = 0.008480310440063477
-(python) time for querying on gpu using torch_cluster = 4.0668065547943115
-(python) time for querying on cpu using torch_cluster = 0.05574607849121094
-(python) there are 0 mismatches in total
-```
-
-N = 2**18 = 262144
+**nearest search**
 ```
 (python) num = 262144
-Checking for multiple GPUs...
-CUDA-capable device count: 1
-> GPU0 = "GeForce RTX 2080 Ti" IS  capable of Peer-to-Peer (P2P)
-numPoints=262144, numDimensions=3, numThreads=512, numBlocks=32, numGPUs=1
+numPoints=262144, numDimensions=3, numThreads=512, numBlocks=32
 0 equal nodes removed. 
 Number of nodes = 262144
-totalTime = 0.0083  initTime = 0.0016  sortTime + removeDuplicatesTime = 0.0034  kdTime = 0.0017  verifyTime = 0.0016
-
-(python) time for building kdtree, moving to cpu, and verification = 0.19263243675231934  (much faster !!!)
-(python) time for querying on cpu using multithreads = 0.05649924278259277                (much faster !!!)
-(python) time for querying on gpu using torch_cluster = 37.511107206344604
-(python) time for querying on cpu using torch_cluster = 0.6656770706176758
+totalTime = 0.0071  initTime = 0.0014  sortTime + removeDuplicatesTime = 0.0026  kdTime = 0.0017  verifyTime = 0.0014
+(python) time for building kdtree, moving to cpu, and verification = 0.03239560127258301
+(python) time for querying on cpu using multithreads = 0.05979561805725098
+(python) time for querying on gpu using torch_cluster = 34.12433195114136
+(python) time for querying on cpu using torch_cluster = 0.6985323429107666
 (python) there are 0 mismatches in total
 ```
 
-N = 2**20 = 1048576
+**knn search**
 ```
-(python) num = 1048576
-Checking for multiple GPUs...
-CUDA-capable device count: 1
-> GPU0 = "GeForce RTX 2080 Ti" IS  capable of Peer-to-Peer (P2P)
-numPoints=1048576, numDimensions=3, numThreads=512, numBlocks=32, numGPUs=1
+(python) num = 262144, knn = 5
+numPoints=262144, numDimensions=3, numThreads=512, numBlocks=32
 0 equal nodes removed. 
-Number of nodes = 1048576
-totalTime = 0.0284  initTime = 0.0037  sortTime + removeDuplicatesTime = 0.0091  kdTime = 0.0127  verifyTime = 0.0028
+Number of nodes = 262144
+totalTime = 0.0076  initTime = 0.0013  sortTime + removeDuplicatesTime = 0.0029  kdTime = 0.0017  verifyTime = 0.0017
+(python) time for building kdtree, moving to cpu, and verification = 0.033992767333984375
+(python) time for querying on cpu using multithreads = 0.14211273193359375
+(python) time for querying on gpu using torch_cluster = 61.90901041030884
+(python) time for querying on cpu using torch_cluster = 1.3592958450317383
+(python) there are 0 mismatches in total
+```
 
-(python) time for building kdtree, moving to cpu, and verification = 0.4154829978942871      (much faster !!!)
-(python) time for querying on cpu using multithreads = 0.31452035903930664                   (much faster !!!)
-(python) time for querying on gpu using torch_cluster = 564.4491164684296
-(python) time for querying on cpu using torch_cluster = 4.288048028945923
+**radius search**
+```
+(python) num = 262144, radius = 100
+numPoints=262144, numDimensions=3, numThreads=512, numBlocks=32
+0 equal nodes removed. 
+Number of nodes = 262144
+totalTime = 0.0067  initTime = 0.0010  sortTime + removeDuplicatesTime = 0.0026  kdTime = 0.0017  verifyTime = 0.0014
+(python) time for building kdtree, moving to cpu, and verification = 0.03257036209106445
+(python) time for querying on cpu using multithreads = 0.19965219497680664
+(python) time for querying on gpu using torch_cluster = 28.944889783859253
+(python) time for querying on cpu using torch_cluster = 2.196791410446167
+(python) time for querying on cpu using cKDTree with 8 threads = 1.28279709815979
 (python) there are 0 mismatches in total
 ```
 
