@@ -11,11 +11,12 @@ if __name__ == "__main__":
     print(f"(python) num = {NUM}, knn = {KNN}")
 
     ########################################
-    data = torch.randn(NUM, 3) * 1000
+    data = torch.randn([NUM, 3], device="cuda") * 1000
     t0 = time()
     tree = torch_kdtree.torchBuildCUDAKDTree(data)
     tree.cpu().verify()
     print(f"(python) time for building kdtree, moving to cpu, and verification = {time() - t0}")
+    data = data.cpu()
 
     ########################################
     query = torch.randn(NUM, 3) * 1000

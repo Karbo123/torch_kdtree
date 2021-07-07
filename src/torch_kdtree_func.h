@@ -210,13 +210,13 @@ sint KdNode::verifyKdTree( const KdNode kdNodes[], const KdCoord coords[], const
  *
  * returns: a KdNode pointer to the root of the k-d tree
  */
-KdNode* KdNode::createKdTree(KdNode kdNodes[], KdCoord coordinates[],  const sint numDimensions, const sint numTuples)
+KdNode* Gpu::createKdTree(Gpu* device, KdNode kdNodes[], KdCoord coordinates[],  const sint numDimensions, const sint numTuples)
 {
 
 	TIMER_DECLARATION();
 
 	TIMER_START();
-	Gpu::initializeKdNodesArray(coordinates, numTuples, numDimensions);
+	device->initializeKdNodesArray(coordinates, numTuples, numDimensions);
 	cudaDeviceSynchronize();
 	TIMER_STOP (double initTime);
 
@@ -224,7 +224,7 @@ KdNode* KdNode::createKdTree(KdNode kdNodes[], KdCoord coordinates[],  const sin
 
 	TIMER_START();
 	sint end[numDimensions]; // Array used to collect results of the remove duplicates function
-	Gpu::mergeSort(end, numTuples, numDimensions);
+	device->mergeSort(end, numTuples, numDimensions);
 	TIMER_STOP (double sortTime);
 
 	// Check that the same number of references was removed from each reference array.
@@ -251,12 +251,12 @@ KdNode* KdNode::createKdTree(KdNode kdNodes[], KdCoord coordinates[],  const sin
 	// Build the k-d tree.
 	TIMER_START();
 	//  refIdx_t root = gpu->startBuildKdTree(kdNodes, end[0], numDimensions);
-	refIdx_t root = Gpu::buildKdTree(kdNodes, end[0], numDimensions);
+	refIdx_t root = device->buildKdTree(kdNodes, end[0], numDimensions);
 	TIMER_STOP (double kdTime);
 
 	// Verify the k-d tree and report the number of KdNodes.
 	TIMER_START();
-	sint numberOfNodes = Gpu::verifyKdTree(kdNodes, root, numDimensions, numTuples);
+	sint numberOfNodes = device->verifyKdTree(kdNodes, root, numDimensions, numTuples);
 	// sint numberOfNodes = kdNodes[root].verifyKdTree( kdNodes, coordinates, numDimensions, 0);
 	cout <<  "Number of nodes = " << numberOfNodes << endl;
 	TIMER_STOP (double verifyTime);

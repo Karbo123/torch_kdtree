@@ -52,10 +52,6 @@
 #include "removeDups_common.h"
 #include "buildKdTree_common.h"
 
-sint Gpu::numGPUs = 0;
-Gpu* Gpu::gpus[MAX_GPUS] = {NULL};
-refIdx_t Gpu::firstNode;
-KdNode Gpu::gpu1stNode;
 
 
 /*
@@ -176,8 +172,7 @@ void Gpu::initializeKdNodesArrayGPU(const KdCoord coordinates[], const sint numT
 			checkCudaErrors(cudaMalloc((void **) &d_coord, (numTuples+1)*sizeof(int)*dim)); // Allocate an extra for max coord
 			checkCudaErrors(cudaMemcpyAsync(d_coord, coordinates, numTuples*sizeof(int)*dim, cudaMemcpyHostToDevice, stream));
 		} else if (d_coord != NULL) {
-			cout << "initializeKdNodesArrayGPU Error: coordinate array already allocated" << endl;
-			exit(1);
+			throw runtime_error("initializeKdNodesArrayGPU Error: coordinate array already allocated");
 		}
 
 		// Add an extra tuple at the end with all max values.
@@ -191,8 +186,7 @@ void Gpu::initializeKdNodesArrayGPU(const KdCoord coordinates[], const sint numT
 		if(d_kdNodes == NULL) {
 			checkCudaErrors(cudaMalloc((void **) &d_kdNodes, numTuples*sizeof(KdNode)));
 		} else {
-			cout << "InitialzeKdNode Error: kdNodes array already allocated" << endl;
-			exit(1);
+			throw runtime_error("InitialzeKdNode Error: kdNodes array already allocated");
 		}
 		// Call the init routine
 		cuInitializeKdNodesArray<<<numBlocks, numThreads, 0, stream>>>(d_kdNodes, d_coord, numTuples, dim, numThreads*numBlocks);
@@ -214,14 +208,9 @@ void Gpu::initializeKdNodesArrayGPU(const KdCoord coordinates[], const sint numT
 void Gpu::initializeKdNodesArray(KdCoord coordinates[], const sint numTuples, const sint dim){
 
 	if (coordinates == NULL) {
-		cout << "initializeKdNodesArray Error: Expecting coordinates data to send to GPU" << endl;
-		exit(1);
+		throw runtime_error("initializeKdNodesArray Error: Expecting coordinates data to send to GPU");
 	}
-#pragma omp parallel for
-	for (int gpuCnt = 0;  gpuCnt<numGPUs; gpuCnt++) {
-		KdCoord* ct = coordinates + gpuCnt * dim * numTuples/numGPUs;
-		gpus[gpuCnt]->initializeKdNodesArrayGPU(ct, numTuples/numGPUs, dim);
-	}
+	this->initializeKdNodesArrayGPU(coordinates, numTuples, dim);
 }
 
 /*
@@ -255,8 +244,7 @@ void Gpu::fillMemGPU(uint* d_pntr, const uint val, const uint num) {
 		cuFillMem<<<numBlocks,numThreads, 0, stream>>>(d_pntr, val, num);
 		checkCudaErrors(cudaGetLastError());
 	} else {
-		cout << "fillMemGPU Error: device pointer is null" << endl;
-		exit(1);
+		throw runtime_error("fillMemGPU Error: device pointer is null");
 	}
 }
 
@@ -266,8 +254,7 @@ void Gpu::fillMemGPU(sint* d_pntr, const sint val, const uint num) {
 		cuFillMem<<<numBlocks,numThreads, 0, stream>>>((uint*)d_pntr, val, num);
 		checkCudaErrors(cudaGetLastError());
 	} else {
-		cout << "fillMemGPU Error: device pointer is null" << endl;
-		exit(1);
+		throw runtime_error("fillMemGPU Error: device pointer is null");
 	}
 }
 
@@ -370,8 +357,7 @@ void Gpu::mergeSortRangeGPU(const sint start, const sint num, const sint from, c
 	setDevice();
 	// First check that memory on the GPU has been allocated
 	if (d_coord == NULL || d_references[from] == NULL || d_references[to] == NULL) {
-		cout << "mergeSortRangeGPU Error: coordinates or references for are null" << endl;
-		exit(1);
+		throw runtime_error("mergeSortRangeGPU Error: coordinates or references for are null");
 	}
 
 	// Set up refVal and tmpVal arrays
@@ -414,12 +400,10 @@ void Gpu::mergeSortRangeGPU(const sint start, const sint num, const sint from, c
 sint Gpu::removeDuplicatesGPU(const sint start, const sint num, const sint from, const sint to,
 		const sint p, const sint dim, Gpu* otherGpu, sint otherNum){
 	if (d_values[from] == NULL || d_values[to] == NULL) {
-		cout << "values[from] or values[to] pointer is NULL" << endl;
-		exit(1);
+		throw runtime_error("values[from] or values[to] pointer is NULL");
 	}
 	if (d_references[from] == NULL || d_references[to] == NULL) {
-		cout << "references[from] or references[to] pointer is NULL" << endl;
-		exit(1);
+		throw runtime_error("references[from] or references[to] pointer is NULL");
 	}
 	// get the pointers to the data in the other GPU if required.  This is to remove duplicates across GPU boundaries.
 	refIdx_t* otherRef   = (otherGpu == NULL) ? NULL : otherGpu->d_references[from]+otherNum-1;
@@ -453,12 +437,10 @@ void Gpu::copyRefValGPU(sint start, sint num, sint from, sint to) {
 	setDevice();
 	// Check for NULL pointers
 	if (d_values[from] == NULL) {
-		cout << "copyRefValGPU Error: values[from] pointer is NULL" << endl;
-		exit(1);
+		throw runtime_error("copyRefValGPU Error: values[from] pointer is NULL");
 	}
 	if (d_references[from] == NULL) {
-		cout << "copyRefValGPU Error: references[from] pointer is NULL" << endl;
-		exit(1);
+		throw runtime_error("copyRefValGPU Error: references[from] pointer is NULL");
 	}
 	if (d_values[to] == NULL)
 		checkCudaErrors(cudaMalloc((void **) &d_values[to], num*sizeof(KdCoord)));
@@ -561,83 +543,27 @@ void Gpu::swapMergeGPU(sint start, sint num, sint from, sint to, sint mergePoint
  * end[]            pointer to an array continuing the number of references after duplicate removal. 
  *                  This method writes to the pth entry in that array.
  */
-void Gpu::mergeSort(sint end[], const sint numTuples, const sint dim){
+void Gpu::mergeSort(sint end[], const sint numTuples, const sint dim)
+{
+	sint NperG = numTuples;
+	this->initMergeSortSmpl(numTuples);
 
-	int gpuEnds[numGPUs][dim];
-	sint NperG = numTuples/numGPUs;
-	refIdx_t maxRef = NperG;
-	for (int i=0; i<numGPUs; i++) gpus[i]->initMergeSortSmpl(numTuples);
-
-	if (numGPUs > 1) {
-#pragma omp parallel for
-		for (int gpuCnt = 0;  gpuCnt<numGPUs; gpuCnt++) {
-			// Initialize the reference array for the first coordinate
-			gpus[gpuCnt]->initializeReferenceGPU(NperG, 0, dim);
-			// And sort that array
-			gpus[gpuCnt]->mergeSortRangeGPU(0, NperG, 0, dim, 0, dim);
-		}
-		sync();
-		// Then swap data between the GPUs so all the data is gpu0 is less than 
-		// all the data in gpu1  performed only on gpu0
-		sint pivot = gpus[0]->balancedSwapGPU(0, NperG, dim, 0, dim, gpus[1]);
-		cout << "Pivot = " << pivot << endl;
-		sync();
-		// Now merge the swapped data into a single sorted data set
-#pragma omp parallel for
-		for (int gpuCnt = 0;  gpuCnt<numGPUs; gpuCnt++){
-			gpus[gpuCnt]->swapMergeGPU(0, NperG, dim, 0, gpuCnt==0 ? NperG-pivot: pivot, 0, dim);
-		}
-		sync(); // wait
-		// And remove dups in all GPU
-#pragma omp parallel for
-		for (int gpuCnt = 0;  gpuCnt<numGPUs; gpuCnt++){
-			gpus[gpuCnt]->num = gpuEnds[gpuCnt][0] = 
-					gpus[gpuCnt]->removeDuplicatesGPU(0, NperG, 0, dim, 0, dim, getGPU(gpuCnt-1), NperG);
-			// If some duplicates were remove the fill the empty locations with reference to max tuple value
-			if (gpus[gpuCnt]->num != NperG)
-				gpus[gpuCnt]->fillMemGPU(gpus[gpuCnt]->d_references[dim]+gpus[gpuCnt]->num, NperG, NperG-gpus[gpuCnt]->num);
-			gpus[gpuCnt]->copyRefValGPU(0, NperG, dim, 0);
-		}
-		sync(); // wait
-		// Get the median of the entire data set which is the last value on the lower GPU
-		gpus[0]->setDevice();
-		checkCudaErrors(cudaMemcpyAsync(&firstNode, gpus[0]->d_references[0]+gpus[0]->num-1, sizeof(refIdx_t), cudaMemcpyDeviceToHost, gpus[0]->stream));
-		// Then replace that one with an index of the max node so that the sort size is the same but will remain in the same place.
-		checkCudaErrors(cudaMemcpyAsync(gpus[0]->d_references[0]+gpus[0]->num-1, &maxRef, sizeof(refIdx_t), cudaMemcpyHostToDevice, gpus[0]->stream));
-		// And subtract 1 from number of elements in gpu 0;
-		gpus[0]->num -= 1;
-		// On all gpus copy the sorted p=0 array to the other arrays and sort,
-#pragma omp parallel for
-		for (int gpuCnt = 0;  gpuCnt<numGPUs; gpuCnt++){
-			for (int p=1;  p<dim; p++) {
-				// Copy the references from p=0 to p=1..dim, sort and remove duplicates
-				gpus[gpuCnt]->copyRefGPU(0, NperG, 0, p);
-				gpus[gpuCnt]->mergeSortRangeGPU(0, NperG, p, dim, p, dim);
-				gpuEnds[gpuCnt][p] = gpus[gpuCnt]->removeDuplicatesGPU(0, NperG, dim, p, p, dim);
-			}
-		}
-		for (int i=0;  i<dim; i++) {
-			end[i] = gpuEnds[0][i]<0 || gpuEnds[1][i]<0 ? -1 :  gpuEnds[0][i] + gpuEnds[1][i];
-		}
-	} else {
-		//Get first node
-		gpus[0]->setDevice();
-		for (int p=0;  p<dim; p++) {
-			gpus[0]->initializeReferenceGPU(NperG, p, dim);
-			gpus[0]->mergeSortRangeGPU(0, NperG, p, dim, p, dim);
-			end[p] = gpus[0]->removeDuplicatesGPU(0, NperG, dim, p, p, dim);
-		}
-
-		gpus[0]->num = end[0];
+	//Get first node
+	this->setDevice();
+	for (int p=0;  p<dim; p++) {
+		this->initializeReferenceGPU(NperG, p, dim);
+		this->mergeSortRangeGPU(0, NperG, p, dim, p, dim);
+		end[p] = this->removeDuplicatesGPU(0, NperG, dim, p, p, dim);
 	}
-	sync(); // Make sure all GPUs are done before freeing memory.
+
+	this->num = end[0];
+	
+	this->syncGPU(); // Make sure all GPUs are done before freeing memory.
 	// Free the value arrays because they are not needed any more.
-	for (int gpuCnt = 0;  gpuCnt<numGPUs; gpuCnt++){
-		gpus[gpuCnt]->closeMergeSortSmpl();
-		for (int p=0;  p<=dim; p++) {
-			checkCudaErrors(cudaFree(gpus[gpuCnt]->d_values[p]));
-		}
-	}
+	this->closeMergeSortSmpl();
+	// for (int p=0;  p<=dim; p++) { // NOTE TODO: should we free the memory ???? as we free it at ~Gpu() func
+	// 	checkCudaErrors(cudaFree(this->d_values[p]));
+	// }
 }
 
 
@@ -657,13 +583,13 @@ refIdx_t Gpu::buildKdTreeGPU(const sint numTuples, const int startP, const sint 
 
 	// Check to see if the GPU already has the references arrays and error out if not.
 	if (d_references == NULL) {
-		cout << "buildKdTree Error: device does not have the reference arrays" << endl;
-		exit(1);
+		throw runtime_error("buildKdTree Error: device does not have the reference arrays");
 	} else {
 		for (sint i = 0; i < dim; i++)
 			if (d_references[i] == NULL) {
-				cout << "buildKdTree Error: device does not have the reference array " << i << endl;
-				exit(1);
+				std::stringstream _str_stream;
+				_str_stream << "buildKdTree Error: device does not have the reference array " << i;
+				throw runtime_error(_str_stream.str());
 			}
 	}
 	if (d_references[dim] == NULL) {  // If the last array in not there create it
@@ -690,29 +616,17 @@ refIdx_t Gpu::buildKdTreeGPU(const sint numTuples, const int startP, const sint 
  *
  * Return 			index of the root node in the KdNodes array,.
  */
-refIdx_t Gpu::buildKdTree(KdNode kdNodes[], const sint numTuples, const sint dim) {
+refIdx_t Gpu::buildKdTree(KdNode kdNodes[], const sint numTuples, const sint dim) 
+{
+	this->initBuildKdTree();
+	this->buildKdTreeGPU(this->num, 0, dim);
+	this->closeBuildKdTree();
 
-	for (int gpuCnt = 0;  gpuCnt<numGPUs; gpuCnt++) gpus[gpuCnt]->initBuildKdTree();
-
-	int startP = numGPUs == 1 ? 0 : 1;
-#pragma omp parallel for
-	for (int gpuCnt = 0;  gpuCnt<numGPUs; gpuCnt++){
-		gpus[gpuCnt]->buildKdTreeGPU(gpus[gpuCnt]->num, startP, dim);
-	}
-	if (numGPUs==2) {
-		// TODO read back the fist node data HERE
-		gpu1stNode.ltChild = gpus[0]->rootNode;
-		gpu1stNode.gtChild = gpus[1]->rootNode;
-		gpu1stNode.tuple = firstNode;
-	} else {
-		firstNode = gpus[0]->rootNode;
-	}
-
-	for (int gpuCnt = 0;  gpuCnt<numGPUs; gpuCnt++) gpus[gpuCnt]->closeBuildKdTree();
-
-	return firstNode;
-
+	return this->rootNode;
 }
+
+/////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////
 
 
 /*
@@ -984,26 +898,18 @@ sint Gpu::verifyKdTreeGPU(const sint root, const sint startP, const sint dim, co
  */
 sint Gpu::verifyKdTree(KdNode kdNodes[], const sint root, const sint dim, const sint numTuples) {
 	// Set up memory for the verify tree functions
-	for (int gpuCnt = 0;  gpuCnt<numGPUs; gpuCnt++) gpus[gpuCnt]->initVerifyKdTree();
+	this->initVerifyKdTree();
 
-	sint nodeCnts[numGPUs]; // to store the per gpu node counts.
-	if (numGPUs==2) {
-#pragma omp parallel for
-		for (int gpuCnt = 0;  gpuCnt<numGPUs; gpuCnt++){
-			refIdx_t l_root = gpuCnt==0 ? gpu1stNode.ltChild : gpu1stNode.gtChild;
-			nodeCnts[gpuCnt] = gpus[gpuCnt]->verifyKdTreeGPU(l_root, 1, dim, gpus[gpuCnt]->num);
-		}
-	} else {
-		nodeCnts[0] = gpus[0]->verifyKdTreeGPU(root, 0, dim, numTuples);
-	}
-	int nodeCnt = numGPUs == 2 ? 1 : 0;
-	for (int i = 0;  i<numGPUs; i++) nodeCnt += nodeCnts[i];
+	int nodeCnt = this->verifyKdTreeGPU(root, 0, dim, numTuples);
+
 	// free the memory used for verifying the tree.
-	for (int gpuCnt = 0;  gpuCnt<numGPUs; gpuCnt++) gpus[gpuCnt]->closeVerifyKdTree();
+	this->closeVerifyKdTree();
 
 	return nodeCnt;
 }
 
+/////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////
 
 /*
  * getKdNodesFromGPU is a Gpu class method that copies the GPU version of the KdNodes array to the host.
@@ -1019,10 +925,9 @@ void Gpu::getKdNodesFromGPU(KdNode kdNodes[], const sint numTuples){
 		checkCudaErrors(cudaMemcpyAsync(kdNodes, d_kdNodes, (numTuples)*sizeof(KdNode), cudaMemcpyDeviceToHost, stream));
 	} else {
 		if (kdNodes == NULL)
-			cout << "getKdNodesFromGPU Error: Don't know where to put the kdNodes" << endl;
+			throw runtime_error("getKdNodesFromGPU Error: Don't know where to put the kdNodes");
 		if (d_kdNodes == NULL)
-			cout << "getKdNodesFromGPU Error: GPU copy of kdNodes is not available" << endl;
-		exit(1);
+			throw runtime_error("getKdNodesFromGPU Error: GPU copy of kdNodes is not available");
 	}
 }
 
@@ -1038,50 +943,17 @@ void Gpu::getKdNodesFromGPU(KdNode kdNodes[], const sint numTuples){
  *                    * This is only used for the 2 GPU case where coordinate data
  *                       may get reordered
  */
-void Gpu::getKdTreeResults(KdNode kdNodes[], KdCoord coord[], const sint numTuples, const sint dim) {
+void Gpu::getKdTreeResults(KdNode kdNodes[], const sint numTuples) {
 	// Copy the knNodes array back
-	int numPerGPU = numTuples/numGPUs;
 	if (kdNodes != NULL ){
-#pragma omp parallel for
-		for (int gpuCnt = 0;  gpuCnt<numGPUs; gpuCnt++){
-			gpus[gpuCnt]->getKdNodesFromGPU(kdNodes + gpuCnt*numPerGPU, numPerGPU);
-		}
-		if (numGPUs == 2) { // Fix the ref indices for the upper part of the array.
-			// copy the GPU first node to the host
-			kdNodes[firstNode].ltChild = gpu1stNode.ltChild;
-			kdNodes[firstNode].gtChild = gpu1stNode.gtChild + numPerGPU;
-			kdNodes[firstNode].tuple = gpu1stNode.tuple;
-#pragma omp parallel for
-			for (int i = numPerGPU;  i<numTuples; i++) {
-				if (kdNodes[i].ltChild >= 0) kdNodes[i].ltChild += numPerGPU;
-				if (kdNodes[i].gtChild >= 0) kdNodes[i].gtChild += numPerGPU;
-				if (kdNodes[i].tuple >= 0)   kdNodes[i].tuple += numPerGPU;
-			}
-			if (coord != NULL ){ // If there are 2 GPUs, the coordinates need to be copied back
-#pragma omp parallel for
-				for (int gpuCnt = 0;  gpuCnt<numGPUs; gpuCnt++){
-					gpus[gpuCnt]->getCoordinatesFromGPU(coord + gpuCnt*numPerGPU*dim, numPerGPU, dim);
-				}
-			} else {
-				cout << "getKdTreeResults Error: Don't know where to put the coordinates" << endl;
-				exit(1);
-			}
-		}
+		this->getKdNodesFromGPU(kdNodes, numTuples);
 	} else {
-		cout << "getKdTreeResults Error: Don't know where to put the kdNodes" << endl;
-		exit(1);
+		throw runtime_error("getKdTreeResults Error: Don't know where to put the kdNodes");
 	}
 }
 
-
-inline bool IsGPUCapableP2P(cudaDeviceProp *pProp)
-{
-#ifdef _WIN32
-	return (bool)(pProp->tccDriver ? true : false);
-#else
-	return (bool)(pProp->major >= 2);
-#endif
-}
+/////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////
 
 /*
  * gpuSetup is a static class method that determines what GPUs are available and whether or
@@ -1092,93 +964,15 @@ inline bool IsGPUCapableP2P(cudaDeviceProp *pProp)
  * threads			Maximum number of threads to use on partitioning
  * blocks			Macimum number of blocks to use on partitioning
  */
-
-void Gpu::gpuSetup(int gpu_max, int threads, int blocks, int dim){
-	// Number of GPUs
-	printf("Checking for multiple GPUs...\n");
-	sint gpu_n;
-	checkCudaErrors(cudaGetDeviceCount(&gpu_n));
-	printf("CUDA-capable device count: %i\n", gpu_n);
-	gpu_n = min(gpu_n,gpu_max);
-
-	// Query device properties
-	cudaDeviceProp prop[MAX_GPUS];
-	int gpuid[MAX_GPUS]; // We want to find the first two GPU's that can support P2P
-	int gpu_count = 0;   // GPUs that meet the criteria
-
-	for (int i=0; i < gpu_n; i++)
+Gpu* Gpu::gpuSetup(int threads, int blocks, int gpuid, int dim)
+{
+	// NOTE: gpuid is the index of the used visible gpu device
+	Gpu* gpu_ptr = new Gpu(threads, blocks, gpuid, dim);
+	if (gpu_ptr == nullptr)
 	{
-		checkCudaErrors(cudaGetDeviceProperties(&prop[i], i));
-
-		// Only boards based on Fermi can support P2P
-		if ((prop[i].major >= 2))
-		{
-			// This is an array of P2P capable GPUs
-			gpuid[gpu_count++] = i;
-		}
-
-		printf("> GPU%d = \"%15s\" %s capable of Peer-to-Peer (P2P)\n", i, prop[i].name, (IsGPUCapableP2P(&prop[i]) ? "IS " : "NOT"));
+		throw runtime_error("gpuSetup Error: Fail to allocate cuda device");
 	}
-	if (gpu_count >= 2) {
-		// Check possibility for peer access
-		printf("\nChecking GPU(s) for support of peer to peer memory access...\n");
-		int can_access_peer_0_1, can_access_peer_1_0;
-		// In this case we just pick the first two that we can support
-		checkCudaErrors(cudaDeviceCanAccessPeer(&can_access_peer_0_1, gpuid[0], gpuid[1]));
-		checkCudaErrors(cudaDeviceCanAccessPeer(&can_access_peer_1_0, gpuid[1], gpuid[0]));
-
-		// Output results from P2P capabilities
-		printf("> Peer-to-Peer (P2P) access from %s (GPU%d) -> %s (GPU%d) : %s\n", prop[gpuid[0]].name, gpuid[0],
-				prop[gpuid[1]].name, gpuid[1] ,
-				can_access_peer_0_1 ? "Yes" : "No");
-		printf("> Peer-to-Peer (P2P) access from %s (GPU%d) -> %s (GPU%d) : %s\n", prop[gpuid[1]].name, gpuid[1],
-				prop[gpuid[0]].name, gpuid[0],
-				can_access_peer_1_0 ? "Yes" : "No");
-		if (can_access_peer_0_1 == 0 || can_access_peer_1_0 == 0)
-		{
-			printf("Peer to Peer access is not available between GPU%d <-> GPU%d, waiving test.\n", gpuid[0], gpuid[1]);
-			checkCudaErrors(cudaSetDevice(gpuid[0]));
-			gpu_n = 1;
-		} else {
-			// Enable peer access
-			printf("Enabling peer access between GPU%d and GPU%d...\n", gpuid[0], gpuid[1]);
-			checkCudaErrors(cudaSetDevice(gpuid[0]));
-			checkCudaErrors(cudaDeviceEnablePeerAccess(gpuid[1], 0));
-			checkCudaErrors(cudaSetDevice(gpuid[1]));
-			checkCudaErrors(cudaDeviceEnablePeerAccess(gpuid[0], 0));
-			// Check that we got UVA on both devices
-			printf("Checking GPU%d and GPU%d for UVA capabilities...\n", gpuid[0], gpuid[1]);
-			const bool has_uva = (prop[gpuid[0]].unifiedAddressing && prop[gpuid[1]].unifiedAddressing);
-
-			printf("> %s (GPU%d) supports UVA: %s\n", prop[gpuid[0]].name, gpuid[0], (prop[gpuid[0]].unifiedAddressing ? "Yes" : "No"));
-			printf("> %s (GPU%d) supports UVA: %s\n", prop[gpuid[1]].name, gpuid[1], (prop[gpuid[1]].unifiedAddressing ? "Yes" : "No"));
-
-			if (has_uva)
-			{
-				printf("Both GPUs can support UVA, enabling...\n");
-			}
-			else
-			{
-				printf("At least one of the two GPUs does NOT support UVA.\n");
-				gpu_n = 1;
-			}
-		}
-	} else {
-		gpu_n = 1;
-	}
-
-#ifdef FAKE_TWO
-	cout << "Faking 2 GPUs." << endl;
-	gpu_n = setNumGPUs(2);
-	for (int i = 0; i<gpu_n; i++){
-		gpus[i] = new Gpu(threads, blocks, gpuid[0], dim);
-	}
-#else
-	gpu_n = setNumGPUs(gpu_n);
-	for (int i = 0; i<gpu_n; i++){
-		gpus[i] = new Gpu(threads, blocks, gpuid[i], dim);
-	}
-#endif
+	return gpu_ptr;
 }
 
 

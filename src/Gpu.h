@@ -50,48 +50,17 @@ class Gpu {
 	// Gpu class constants;
 	static const uint MAX_THREADS = 1024;
 	static const uint MAX_BLOCKS = 1024;
-	static const uint MAX_GPUS = 2;
-
-	// Static variables to keep track of multiple GPUs and some setters.
-private:
-	static sint numGPUs;
-	static Gpu* gpus[MAX_GPUS];
-	static refIdx_t firstNode; // Used to pass the index of the first node between methods
-	static KdNode gpu1stNode;	// Used to store root indices fur multiple GPUs
-
-	static inline sint setNumGPUs(sint ng) {numGPUs = min(ng,MAX_GPUS); return numGPUs;}
-	static inline Gpu* getGPU(int n) {return (n>numGPUs || n<0) ? NULL : gpus[n];}
-	static inline void sync() {
-		for (int gpuCnt = 0; gpuCnt < numGPUs; gpuCnt++) gpus[gpuCnt]->syncGPU();
-	}
 
 public:
 	// These are the API methods used outside the class.  They hide any details about the GPUs from the main program.
-	static sint     getNumGPUs() {return numGPUs;}
-	static void     gpuSetup(int gpu_max, int threads, int blocks, int dim); // GPU discovery and multiple GPU static variable setup.
-	static void     initializeKdNodesArray(KdCoord coordinates[], const sint numTuples, const sint dim);
-	static void     mergeSort(sint end[], const sint numTuples, const sint dim);
-	static refIdx_t buildKdTree(KdNode kdNodes[], const sint numTuples, const sint dim);
-	static sint     verifyKdTree(KdNode kdNodes[], const sint root, const sint dim, const sint numTuples);
-	static void     getKdTreeResults(KdNode kdNodes[], KdCoord coord[], const sint numTuples, const sint dim);
-	static int      getNumThreads() {
-		if (numGPUs==2) {
-			if  (gpus[0] == NULL || gpus[1] == NULL) return 0;
-			return (min(gpus[0]->numThreads,gpus[1]->numThreads));
-		} else {
-			if  (gpus[0] == NULL ) return 0;
-			return (gpus[0]->numThreads);
-		}
-	}
-	static int getNumBlocks() {
-		if (numGPUs==2) {
-			if  (gpus[0] == NULL || gpus[1] == NULL) return 0;
-			return (min(gpus[0]->numBlocks,gpus[1]->numBlocks));
-		} else {
-			if  (gpus[0] == NULL ) return 0;
-			return (gpus[0]->numBlocks);
-		}
-	}
+	static Gpu* gpuSetup(int threads, int blocks, int gpuid, int dim);
+	void        initializeKdNodesArray(KdCoord coordinates[], const sint numTuples, const sint dim);
+	void        mergeSort(sint end[], const sint numTuples, const sint dim);
+	refIdx_t    buildKdTree(KdNode kdNodes[], const sint numTuples, const sint dim);
+	sint        verifyKdTree(KdNode kdNodes[], const sint root, const sint dim, const sint numTuples);
+	void        getKdTreeResults(KdNode kdNodes[], const sint numTuples);
+	int         getNumThreads() { return this->numThreads; }
+	int         getNumBlocks() { return this->numBlocks; }
 
 	// Device specific variables
 private:
@@ -110,7 +79,7 @@ private:
 	uint 		num;           // Number of tuples or points
 	refIdx_t    rootNode;      // Store the root node here so all partitionDim rouotines can get to it.
 
-private:
+public:
 	// Constructor
 	Gpu(int threads, int blocks, int dev, int dim) {
 		devID = dev;
@@ -295,6 +264,20 @@ private: // These are the methods specific verifyKdTree
 	void initVerifyKdTree();
 	void closeVerifyKdTree();
 	int  verifyKdTreeGPU(const sint root, const sint pstart, const sint dim, const sint numTuples);
+
+
+	/*
+	 * The createKdTree function performs the necessary initialization then calls the buildKdTree function.
+	 *
+	 * calling parameters:
+	 *
+	 * coordinates - a array  of coordinates ie (x, y, z, w...) tuples
+	 * numDimensions - the number of dimensions
+	 *
+	 * returns: a KdNode pointer to the root of the k-d tree
+	 */
+public:
+	static KdNode *createKdTree(Gpu* device, KdNode kdNodes[], KdCoord coordinates[],  const sint numDimensions, const sint numTuples);
 
 };
 

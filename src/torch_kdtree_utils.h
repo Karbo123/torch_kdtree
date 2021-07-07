@@ -19,6 +19,7 @@ namespace py = pybind11;
 
 #define CHECK_CONTIGUOUS(x) TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")
 #define CHECK_FLOAT32(x) TORCH_CHECK(x.dtype()==torch::kFloat32, #x " must be float32")
+#define CHECK_CUDA(x) TORCH_CHECK(x.is_cuda(), #x " must be a CUDA tensor")
 
 ////////////////////////////////////////////////////////////////
 
@@ -44,8 +45,7 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort =
 ////////////////////////////////////////////////////////////////
 
 std::string environ_cuda = "";
-const int numGPUs       = 1;
-const int numThreads    = 512;
-const int numBlocks     = 32;
+const int numThreads     = 512; // max is 1024
+const int numBlocks      = 32;  // max is 1024
 
 #endif

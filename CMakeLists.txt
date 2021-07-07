@@ -6,7 +6,7 @@ find_package(Python3 3.7 REQUIRED Interpreter Development)
 find_library(TORCH_PYTHON_LIBRARY torch_python PATHS "${TORCH_INSTALL_PREFIX}/lib")
 
 set(CMAKE_BUILD_TYPE Release)
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --expt-relaxed-constexpr -w -Xptxas='-w' -Xcompiler='-fopenmp -funroll-loops'")
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -w -Xptxas='-w' -Xcompiler='-fopenmp -funroll-loops'")
 
 file(GLOB COMMON_SOURCES 
           ${CMAKE_SOURCE_DIR}/src/buildKdTree.cu
@@ -14,16 +14,6 @@ file(GLOB COMMON_SOURCES
           ${CMAKE_SOURCE_DIR}/src/mergeSort.cu
           ${CMAKE_SOURCE_DIR}/src/removeDups.cu
     )
-
-########################################################
-add_executable(kdTreeGPUsms ${COMMON_SOURCES} ${CMAKE_SOURCE_DIR}/src/KdTreeGPUsms.cu)
-target_compile_features(kdTreeGPUsms PUBLIC cxx_std_14) 
-
-target_link_libraries(kdTreeGPUsms -lgomp)
-
-target_include_directories(kdTreeGPUsms PUBLIC ${PROJECT_SOURCE_DIR}/src)
-target_include_directories(kdTreeGPUsms PUBLIC ${CUDA_INCLUDE_DIRS})
-target_include_directories(kdTreeGPUsms PUBLIC "/usr/local/cuda/samples/common/inc")
 
 ########################################################
 

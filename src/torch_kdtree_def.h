@@ -10,6 +10,7 @@ public:
     sint numPoints;
     sint numDimensions;
     bool is_cuda;
+    Gpu* device;
 
     ///////////////////////////////////////////////////////////////////
     TorchKDTree(sint _numPoints, sint _numDimensions);
@@ -66,7 +67,8 @@ public:
 TorchKDTree::TorchKDTree(sint _numPoints, sint _numDimensions): 
                             root(-1), 
                             numPoints(_numPoints), numDimensions(_numDimensions), 
-                            is_cuda(true)
+                            is_cuda(true),
+                            device(nullptr)
 {
     kdNodes = new KdNode[_numPoints];
     coordinates = new float[_numPoints * _numDimensions];
@@ -85,12 +87,14 @@ TorchKDTree::TorchKDTree(TorchKDTree&& _tree)
     numPoints = _tree.numPoints; _tree.numPoints = 0;
     numDimensions = _tree.numDimensions;
     is_cuda = _tree.is_cuda;
+    device = _tree.device; _tree.device = nullptr;
 }
 
 TorchKDTree::~TorchKDTree()
 {
     delete[] kdNodes;
     delete[] coordinates;
+    delete device;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -111,13 +115,13 @@ TorchKDTree& TorchKDTree::cpu()
     if (is_cuda)
     {
         // read the KdTree back from GPU
-        Gpu::getKdTreeResults(kdNodes, coordinates, numPoints, numDimensions);
+        device->getKdTreeResults(kdNodes, numPoints);
         // now kdNodes have values
     }
 
     // on CUDA
     is_cuda = false;
-
+    
     // process the whole tree // TODO actually we should process the tree on CUDA @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
     _traverse_and_assign();
 

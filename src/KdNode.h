@@ -121,18 +121,6 @@ public:
 	sint verifyKdTree( const KdNode kdNodes[], const KdCoord coords[], const sint dim, const sint depth) const;
 
 	/*
-	 * The createKdTree function performs the necessary initialization then calls the buildKdTree function.
-	 *
-	 * calling parameters:
-	 *
-	 * coordinates - a array  of coordinates ie (x, y, z, w...) tuples
-	 * numDimensions - the number of dimensions
-	 *
-	 * returns: a KdNode pointer to the root of the k-d tree
-	 */
-public:
-	static KdNode *createKdTree( KdNode kdNodes[], KdCoord coordinates[],  const sint numDimensions, const sint numTuples);
-	/*
 	 * Search the k-d tree and find the KdNodes that lie within a cutoff distance
 	 * from a query node in all k dimensions.
 	 *

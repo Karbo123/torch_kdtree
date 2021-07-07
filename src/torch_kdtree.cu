@@ -17,31 +17,27 @@ TorchKDTree torchBuildCUDAKDTree(torch::Tensor data_float)
     // check input
     CHECK_CONTIGUOUS(data_float);
     CHECK_FLOAT32(data_float);
+    CHECK_CUDA(data_float);
     sint numPoints = data_float.size(0);
     sint numDimensions = data_float.size(1);
+    sint gpuId = data_float.device().index();
 
     TorchKDTree tree(numPoints, numDimensions);
-    if (data_float.is_cuda())
-    {
-        float* float_ptr = data_float.data_ptr<float>();
-        gpuErrchk(cudaMemcpy(tree.coordinates, float_ptr, numPoints * numDimensions * sizeof(float), cudaMemcpyDeviceToHost)); // make a copy
-    } else
-    {
-        float* float_ptr = data_float.data_ptr<float>();
-        std::memcpy(tree.coordinates, float_ptr, numPoints * numDimensions * sizeof(float)); // make a copy
-    }
-
+    
+    // copy coordinates to host // TODO do not copy for speed
+    float* float_ptr = data_float.data_ptr<float>();
+    gpuErrchk(cudaMemcpy(tree.coordinates, float_ptr, numPoints * numDimensions * sizeof(float), cudaMemcpyDeviceToHost));
+    
     // initialize environment
     std::stringstream _str_stream;
-    _str_stream << "numGPUs="       << numGPUs       << ", ";
     _str_stream << "numThreads="    << numThreads    << ", ";
     _str_stream << "numBlocks="     << numBlocks     << ", ";
     _str_stream << "numDimensions=" << numDimensions;
     std::string environ_cuda_target = _str_stream.str();
     if (environ_cuda != environ_cuda_target)
     {
-        Gpu::gpuSetup(numGPUs, numThreads, numBlocks, numDimensions);
-        if (Gpu::getNumThreads() == 0 || Gpu::getNumBlocks() == 0) 
+        tree.device = Gpu::gpuSetup(numThreads, numBlocks, gpuId, numDimensions);
+        if (tree.device->getNumThreads() == 0 || tree.device->getNumBlocks() == 0) 
         {
             _str_stream.str("");
             _str_stream << "KdNode Tree cannot be built with " << numThreads << " threads or " << numBlocks << " blocks" << std::endl;
@@ -51,8 +47,7 @@ TorchKDTree torchBuildCUDAKDTree(torch::Tensor data_float)
         std::cout << "numPoints=" << numPoints << ", "
                   << "numDimensions=" << numDimensions << ", "
                   << "numThreads=" << numThreads << ", "
-                  << "numBlocks=" << numBlocks << ", "
-                  << "numGPUs=" << numGPUs << std::endl;
+                  << "numBlocks=" << numBlocks << std::endl;
         
         environ_cuda = environ_cuda_target;
     }
@@ -60,7 +55,7 @@ TorchKDTree torchBuildCUDAKDTree(torch::Tensor data_float)
     // create the tree
     // NOTE:
     // - kdNodes unchanges
-    KdNode* root_ptr = KdNode::createKdTree(tree.kdNodes, tree.coordinates, numDimensions, numPoints);
+    KdNode* root_ptr = Gpu::createKdTree(tree.device, tree.kdNodes, tree.coordinates, numDimensions, numPoints);
     tree.root = refIdx_t(root_ptr - tree.kdNodes);
 
     return std::move(tree); // no copy
