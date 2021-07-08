@@ -6,7 +6,7 @@ from time import time
 
 
 if __name__ == "__main__":
-    NUM = int(2**18)
+    NUM = int(2**16)
     KNN = 5
     print(f"(python) num = {NUM}, knn = {KNN}")
 

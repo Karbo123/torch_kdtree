@@ -85,7 +85,7 @@ totalTime = 0.0067  initTime = 0.0010  sortTime + removeDuplicatesTime = 0.0026 
 
 # TODO
 
-- create a work buffer, use BFS on CUDA to do _traverse_and_assign()
+- [ ] CUDA query
 
 other ref: [Traversal on CUDA](https://developer.nvidia.com/blog/thinking-parallel-part-ii-tree-traversal-gpu/)
 

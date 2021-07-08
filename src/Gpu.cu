@@ -654,6 +654,42 @@ refIdx_t Gpu::buildKdTree(KdNode kdNodes[], const sint numTuples, const sint dim
 // TODO use a negative value in g_sums[0] to indicate an error instead so a global is not needed.
 __device__ uint d_verifyKdTreeError;
 
+__global__ void cuAssignment(KdNode kdNodes[], refIdx_t nextRefs[], refIdx_t refs[], const sint num, const sint p)
+{
+	const sint pos = threadIdx.x + blockIdx.x * blockDim.x;
+	const sint numThreads = gridDim.x * blockDim.x;
+
+	refIdx_t node;
+	refIdx_t parent;
+	if (num == 1)
+	{
+		node = refs[0];
+		kdNodes[node].split_dim = p;
+		kdNodes[node].parent    = -1;
+		kdNodes[node].brother   = -1;
+	}
+	else
+	{
+		for (sint i = pos;  i<num; i+=numThreads) // assign values for kdNodes
+		{
+			node = refs[i];
+			if (node > -1) 
+			{
+				KdNode& node_current = kdNodes[node];
+
+				node_current.split_dim = p;
+
+				parent = nextRefs[i / 2]; // read from previous buffer
+				node_current.parent = parent;
+	
+				node_current.brother = (kdNodes[parent].ltChild == node) ? (kdNodes[parent].gtChild)
+																		 : (kdNodes[parent].ltChild);
+				
+			}
+		}
+	}
+}
+
 // TODO create a __device__ function to handle the summation within a block.
 __global__ void cuVerifyKdTree(const KdNode kdNodes[], const KdCoord coord[], sint g_sums[], refIdx_t nextRefs[], refIdx_t refs[], const sint num, const sint p, const sint dim) {
 
@@ -824,7 +860,7 @@ sint Gpu::verifyKdTreeGPU(const sint root, const sint startP, const sint dim, co
 
 		const sint p = (level+startP) % dim; // Calculate the primary axis for this level
 		nextChildren = d_midRefs[(level+1) % 2];
-		children = d_midRefs[(level) % 2 % 2];
+		children = d_midRefs[(level) % 2];
 		// Allocate the array to put the children of this level in. Needs to be twice the size of the current level.
 
 		// Check the current level and get the nodes for the next level.  Only start enough thread to cover current level
@@ -840,6 +876,12 @@ sint Gpu::verifyKdTreeGPU(const sint root, const sint startP, const sint dim, co
 #pragma omp critical (launchLock)
 		{
 			setDevice();
+			cuAssignment<<<blocks,numThreads, 0, stream>>>(d_kdNodes,
+				nextChildren,
+				children, 
+				(1<<level), 
+				p);
+			checkCudaErrors(cudaGetLastError());
 			cuVerifyKdTree<<<blocks,numThreads, 0, stream>>>(d_kdNodes,
 					d_coord,
 					d_sums,

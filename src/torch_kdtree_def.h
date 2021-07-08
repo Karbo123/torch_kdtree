@@ -28,8 +28,6 @@ public:
 
     KdNode get_node(sint index);
 
-    void _traverse_and_assign();
-
     ///////////////////////////////////////////////////////////////////
     refIdx_t _search(const float* query, refIdx_t node);
 
@@ -121,9 +119,6 @@ TorchKDTree& TorchKDTree::cpu()
 
     // on CUDA
     is_cuda = false;
-    
-    // process the whole tree // TODO actually we should process the tree on CUDA @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-    _traverse_and_assign();
 
     return *this;
 }
@@ -145,33 +140,6 @@ KdNode TorchKDTree::get_node(sint index)
 {
     if (is_cuda) throw runtime_error("CUDA-KDTree cannot access node from host");
     return kdNodes[index];
-}
-
-void TorchKDTree::_traverse_and_assign()
-{
-    using node_parent_depth = std::tuple<refIdx_t, refIdx_t, sint>; // current_node, parent_node, depth
-    
-    // DFS
-    refIdx_t node, parent; sint depth;
-    std::stack<node_parent_depth> buffer;
-    buffer.emplace(node_parent_depth(root, -1, 0)); // NOTE: -1 means no parent
-    while (!buffer.empty())
-    {
-        std::tie(node, parent, depth) = buffer.top();
-        buffer.pop();
-
-        KdNode& node_current = kdNodes[node];
-
-        // assign
-        node_current.split_dim = depth % numDimensions;
-        node_current.parent = parent;
-        if (parent >= 0) node_current.brother = (kdNodes[parent].ltChild == node) ? (kdNodes[parent].gtChild) : (kdNodes[parent].ltChild);
-        else node_current.brother = -1;
-        
-        // traverse
-        if (node_current.gtChild >= 0) buffer.emplace(node_parent_depth(node_current.gtChild, node, depth + 1)); // push right tree
-        if (node_current.ltChild >= 0) buffer.emplace(node_parent_depth(node_current.ltChild, node, depth + 1)); // push left tree
-    }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
