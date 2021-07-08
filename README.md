@@ -13,7 +13,7 @@ Functions currently implemented:
 - radius search (CPU)
 
 
-**NOTE** this repo is still under heavy development
+**NOTE: this repo is still under heavy development**
 
 
 # Build
