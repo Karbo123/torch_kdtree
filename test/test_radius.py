@@ -7,20 +7,20 @@ from time import time
 import numpy as np
 
 if __name__ == "__main__":
-    NUM = int(2**16)
+    NUM = int(2**18)
     RADIUS = 100
     print(f"(python) num = {NUM}, radius = {RADIUS}")
 
     ########################################
-    data = torch.randn([NUM, 3], device="cuda") * 1000
+    data = torch.randn([NUM, 3], device="cuda")
     t0 = time()
     tree = torch_kdtree.torchBuildCUDAKDTree(data)
     tree.cpu()
-    print(f"(python) time for building kdtree, moving to cpu, and verification = {time() - t0}")
+    print(f"(python) time for building kdtree, and moving to cpu = {time() - t0}")
     data = data.cpu()
 
     ########################################
-    query = torch.randn(NUM, 3) * 1000
+    query = torch.randn(NUM, 3)
     t0 = time()
     index, batch = tree.search_radius(query, RADIUS)
     print(f"(python) time for querying on cpu using multithreads = {time() - t0}")
