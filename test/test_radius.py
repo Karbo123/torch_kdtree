@@ -8,7 +8,7 @@ import numpy as np
 
 if __name__ == "__main__":
     NUM = int(2**18)
-    RADIUS = 100
+    RADIUS = 0.1
     print(f"(python) num = {NUM}, radius = {RADIUS}")
 
     ########################################
