@@ -22,8 +22,6 @@ public:
 
     TorchKDTree& cpu();
 
-    sint verify();
-
     KdNode get_root();
 
     KdNode get_node(sint index);
@@ -121,13 +119,6 @@ TorchKDTree& TorchKDTree::cpu()
     is_cuda = false;
 
     return *this;
-}
-
-sint TorchKDTree::verify()
-{
-    if (is_cuda) throw runtime_error("CUDA-KDTree cannot be verified from host");
-    sint numberOfNodes = kdNodes[root].verifyKdTree(kdNodes, coordinates, numDimensions, 0); // number of nodes on host
-    return numberOfNodes;
 }
 
 KdNode TorchKDTree::get_root()
