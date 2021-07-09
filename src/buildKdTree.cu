@@ -295,7 +295,6 @@ __global__ void cuCopyRef(refIdx_t refoutx[], refIdx_t refinx[], const sint numT
 #endif
 
 
-__device__ sint d_partitionError;
 #define PART_SIZE_GT_SUB_PART_SIZE -1
 #define PART_FINISH_DELTA_TOO_LARGE -2
 
@@ -360,7 +359,8 @@ __global__ void cuPartitionShort( KdNode kdNodes[], const __restrict__ KdCoord c
 		const sint p, const sint dim,
 		refIdx_t midRefs[], refIdx_t lastMidRefs[],
 		sint startIn, sint endIn,
-		const sint level, const sint logNumSubWarps, const sint logSubWarpSize)
+		const sint level, const sint logNumSubWarps, const sint logSubWarpSize,
+		sint* d_partitionError)
 {
 	uint pos = (blockIdx.x * blockDim.x + threadIdx.x); // This thread's position in all threads
 	uint subWarpSize = 1<<logSubWarpSize;
@@ -392,7 +392,7 @@ __global__ void cuPartitionShort( KdNode kdNodes[], const __restrict__ KdCoord c
 		}
 
 		if((end - start + 1) > subWarpSize) {
-			d_partitionError =  PART_SIZE_GT_SUB_PART_SIZE;
+			*d_partitionError =  PART_SIZE_GT_SUB_PART_SIZE;
 		}
 
 		mid = start + ((end - start)>>1);
@@ -653,7 +653,8 @@ __global__ void cuPartition( KdNode kdNodes[], const __restrict__ KdCoord coords
 }
 
 __global__ void cuPartitionLast(KdNode kdNodes[], refIdx_t refp[], refIdx_t midRefs[],	refIdx_t lastMidRefs[],
-		const sint startIn, const sint endIn, const sint level)
+		const sint startIn, const sint endIn, const sint level,
+		sint* d_partitionError)
 {
 	uint pos = (blockIdx.x * blockDim.x + threadIdx.x);
 	uint allWarps = gridDim.x * blockDim.x;
@@ -673,7 +674,7 @@ __global__ void cuPartitionLast(KdNode kdNodes[], refIdx_t refp[], refIdx_t midR
 	}
 	if (end - start > 2){
 		// set an error condition.  Indicates that not enough partition loops were done.
-		d_partitionError = PART_FINISH_DELTA_TOO_LARGE;
+		*d_partitionError = PART_FINISH_DELTA_TOO_LARGE;
 	} else if (end - start == 2) {
 		mid = start + ((end - start)>>1);
 		midRef = refp[mid];
@@ -838,10 +839,11 @@ void Gpu::partitionDim(KdNode d_kdNodes[], const KdCoord d_coords[], refIdx_t* l
 #define CHECK_FOR_ERRORS
 #ifdef CHECK_FOR_ERRORS
 			sint partitionError = 0;
-			cudaMemcpyToSymbol(d_partitionError,
-					&partitionError,
-					sizeof(partitionError),
-					0,cudaMemcpyHostToDevice);
+			// cudaMemcpyToSymbol(*d_partitionError,
+			// 		&partitionError,
+			// 		sizeof(partitionError),
+			// 		0,cudaMemcpyHostToDevice);
+			checkCudaErrors(cudaMemcpy(d_partitionError, &partitionError, sizeof(sint), cudaMemcpyHostToDevice));
 #endif
 			sint logSubWarpSize = logNumTuples - level; // Should never be bigger than 32
 			sint logNumSubWarps = logNumWarps + 5 - logSubWarpSize;
@@ -860,17 +862,18 @@ void Gpu::partitionDim(KdNode d_kdNodes[], const KdCoord d_coords[], refIdx_t* l
 							thisMidRefs,                				// array of this midpoint refrences
 							lastMidRefs,           					// array of last midpoint refrences
 							start, end,                               // start and end of the data
-							level, logNumSubWarps, logSubWarpSize);    // sub level.
+							level, logNumSubWarps, logSubWarpSize, d_partitionError);    // sub level.
 					checkCudaErrors(cudaGetLastError());
 					// Do the copy to close up the gaps, lt to the lower half, gt to the upper half
 					cuCopyRef<<<numBlocks, numThrdPerBlk, 0, stream>>>(l_references[r]+start, l_references[dim]+start, end - start + 1);
 				}
 				checkCudaErrors(cudaGetLastError());
 #ifdef CHECK_FOR_ERRORS
-				cudaMemcpyFromSymbolAsync(&partitionError,
-						d_partitionError,
-						sizeof(partitionError),
-						0,cudaMemcpyDeviceToHost, stream);
+				// cudaMemcpyFromSymbolAsync(&partitionError,
+				// 		*d_partitionError,
+				// 		sizeof(partitionError),
+				// 		0,cudaMemcpyDeviceToHost, stream);
+				checkCudaErrors(cudaMemcpyAsync(&partitionError, d_partitionError, sizeof(sint), cudaMemcpyDeviceToHost, stream));
 				if (partitionError == PART_SIZE_GT_SUB_PART_SIZE ) {
 					cout << "Error in partition size vs sub warp size on level " << level << endl;
 					exit(1);
@@ -959,8 +962,9 @@ void Gpu::partitionDimLast(KdNode d_kdNodes[], const KdCoord coord[], refIdx_t* 
 			r = (r >= dim) ? r-dim : r;
 #ifdef CHECK_FOR_ERRORS
 			sint partitionError = 0;
-			cudaMemcpyToSymbol(d_partitionError, &partitionError,
-					sizeof(partitionError), 0,cudaMemcpyHostToDevice);
+			// cudaMemcpyToSymbol(*d_partitionError, &partitionError,
+			// 		sizeof(partitionError), 0,cudaMemcpyHostToDevice);
+			checkCudaErrors(cudaMemcpy(d_partitionError, &partitionError, sizeof(sint), cudaMemcpyHostToDevice));
 #endif
 #pragma omp critical (launchLock)
 			{
@@ -969,12 +973,13 @@ void Gpu::partitionDimLast(KdNode d_kdNodes[], const KdCoord coord[], refIdx_t* 
 						l_references[p],  // Reference array for primary
 						thisMidRefs+loop*numThreads, // mid reference array for current level
 						lastMidRefs+loop*numThreads/2, // mid reference array for last level
-						start, end, remLevels); // Address range and more levels.
+						start, end, remLevels, d_partitionError); // Address range and more levels.
 				checkCudaErrors(cudaGetLastError());
 			}
 #ifdef CHECK_FOR_ERRORS
-			cudaMemcpyFromSymbol(&partitionError, d_partitionError,
-					sizeof(partitionError), 0,cudaMemcpyDeviceToHost);
+			// cudaMemcpyFromSymbol(&partitionError, *d_partitionError,
+			// 		sizeof(partitionError), 0,cudaMemcpyDeviceToHost);
+			checkCudaErrors(cudaMemcpyAsync(&partitionError, d_partitionError, sizeof(sint), cudaMemcpyDeviceToHost, stream));
 			if (partitionError == PART_FINISH_DELTA_TOO_LARGE ) {
 				cout << "Error in last partition pass.  Probably due to insufficient number of partiion passes, level = " << level << endl;
 				exit(1);

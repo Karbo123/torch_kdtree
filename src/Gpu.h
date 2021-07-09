@@ -78,6 +78,7 @@ private:
 	uint 		dimen;	       // Number of dimensions
 	uint 		num;           // Number of tuples or points
 	refIdx_t    rootNode;      // Store the root node here so all partitionDim rouotines can get to it.
+	sint* d_partitionError;
 
 public:
 	// Constructor
@@ -99,6 +100,7 @@ public:
 		d_segLengthsGT = NULL;
 		d_midRefs[0] = NULL;
 		d_midRefs[1] = NULL;
+		checkCudaErrors(cudaMalloc((void**)&d_partitionError, sizeof(sint))); 
 
 		setDevice();
 		checkCudaErrors(cudaStreamCreate(&stream));
@@ -128,6 +130,9 @@ public:
 			checkCudaErrors(cudaFree(d_kdNodes));
 		if (d_end != NULL)
 			checkCudaErrors(cudaFree(d_end));
+		if (d_partitionError != NULL)
+			checkCudaErrors(cudaFree(d_partitionError));
+
 		checkCudaErrors(cudaEventDestroy(start));
 		checkCudaErrors(cudaEventDestroy(stop));
 		checkCudaErrors(cudaStreamDestroy(stream));
