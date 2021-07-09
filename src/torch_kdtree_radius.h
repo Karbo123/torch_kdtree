@@ -114,6 +114,17 @@ void TorchKDTree::_search_radius<0>(const float* point, float radius2, std::vect
 }
 
 
+template<int N>
+struct WorkerRadius
+{
+    static void work(TorchKDTree* tree_ptr, std::vector<std::vector<sint>>* vec_of_vec_ptr,
+                     float* points_ptr, int numDimensions, int numQuery, float radius2)
+    {
+        auto& vec_of_vec = *vec_of_vec_ptr;
+        #pragma omp parallel for
+        for (sint i = 0; i < numQuery; ++i) tree_ptr->_search_radius<N>(points_ptr + i * numDimensions, radius2, vec_of_vec[i]);
+    }
+};
 
 std::tuple<torch::Tensor, torch::Tensor> TorchKDTree::search_radius(torch::Tensor points, float radius)
 {
@@ -135,63 +146,8 @@ std::tuple<torch::Tensor, torch::Tensor> TorchKDTree::search_radius(torch::Tenso
     {
         auto vec_of_vec = std::vector<std::vector<sint>>(numQuery);
 
-        if (numDimensions > 8 && 
-            numDimensions != 16 && 
-            numDimensions != 32)
-        {
-            #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_radius<0>(points_ptr + i * numDimensions, radius2, vec_of_vec[i]);
-        }
-        else if (numDimensions == 1)
-        {
-            #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_radius<1>(points_ptr + i * numDimensions, radius2, vec_of_vec[i]);
-        }
-        else if (numDimensions == 2)
-        {
-            #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_radius<2>(points_ptr + i * numDimensions, radius2, vec_of_vec[i]);
-        }
-        else if (numDimensions == 3)
-        {
-            #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_radius<3>(points_ptr + i * numDimensions, radius2, vec_of_vec[i]);
-        }
-        else if (numDimensions == 4)
-        {
-            #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_radius<4>(points_ptr + i * numDimensions, radius2, vec_of_vec[i]);
-        }
-        else if (numDimensions == 5)
-        {
-            #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_radius<5>(points_ptr + i * numDimensions, radius2, vec_of_vec[i]);
-        }
-        else if (numDimensions == 6)
-        {
-            #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_radius<6>(points_ptr + i * numDimensions, radius2, vec_of_vec[i]);
-        }
-        else if (numDimensions == 7)
-        {
-            #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_radius<7>(points_ptr + i * numDimensions, radius2, vec_of_vec[i]);
-        }
-        else if (numDimensions == 8)
-        {
-            #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_radius<8>(points_ptr + i * numDimensions, radius2, vec_of_vec[i]);
-        }
-        else if (numDimensions == 16)
-        {
-            #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_radius<16>(points_ptr + i * numDimensions, radius2, vec_of_vec[i]);
-        }
-        else if (numDimensions == 32)
-        {
-            #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_radius<32>(points_ptr + i * numDimensions, radius2, vec_of_vec[i]);
-        }
+        Dispatcher<WorkerRadius>::dispatch(numDimensions,
+                                           this, &vec_of_vec, points_ptr, numDimensions, numQuery, radius2);
 
         std::vector<sint> ind_size(numQuery);
         std::transform(vec_of_vec.begin(), vec_of_vec.end(), ind_size.begin(), [](const std::vector<sint>& vec){return sint(vec.size());});

@@ -44,8 +44,44 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort =
 
 ////////////////////////////////////////////////////////////////
 
-std::string environ_cuda = "";
-const int numThreads     = 512; // max is 1024
-const int numBlocks      = 32;  // max is 1024
+std::string environ_cuda           = "";
+const int numThreads               = 512; // max is 1024
+const int numBlocks                = 32;  // max is 1024
+constexpr int numPreCompileDimsMax = 32;  // the max num of dims to precompile
+
+////////////////////////////////////////////////////////////////
+
+template<template<int> typename F, int N, int Nmax>
+struct _DispatcherImpl
+{
+    template<typename... Args>
+    static void dispatch(int n, Args... args)
+    {
+        if (n == N) F<N>::work(args...);
+        else _DispatcherImpl<F, N + 1, Nmax>::dispatch(n, args...);
+    }
+};
+
+
+template<template<int> typename F, int Nmax>
+struct _DispatcherImpl<F, Nmax, Nmax>
+{
+    template<typename... Args>
+    static void dispatch(int n, Args... args)
+    {
+        F<0>::work(args...);
+    }
+};
+
+
+template<template<int> typename F, int Nmax = numPreCompileDimsMax>
+struct Dispatcher
+{
+    template<typename... Args>
+    static void dispatch(int n, Args... args)
+    {
+        _DispatcherImpl<F, 1, Nmax + 1>::dispatch(n, args...);
+    }
+};
 
 #endif

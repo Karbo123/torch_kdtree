@@ -144,6 +144,16 @@ void TorchKDTree::_search_knn<0>(const float* point, sint k, int64_t* out_)
 }
 
 
+template<int N>
+struct WorkerKnn
+{
+    static void work(TorchKDTree* tree_ptr, float* points_ptr, int64_t* raw_ptr, int numDimensions, int numQuery, int k)
+    {
+        #pragma omp parallel for
+        for (sint i = 0; i < numQuery; ++i) tree_ptr->_search_knn<N>(points_ptr + i * numDimensions, k, raw_ptr + i * k);
+    }
+};
+
 torch::Tensor TorchKDTree::search_knn(torch::Tensor points, sint k)
 {
     CHECK_CONTIGUOUS(points);
@@ -163,63 +173,8 @@ torch::Tensor TorchKDTree::search_knn(torch::Tensor points, sint k)
         indices_tensor = torch::zeros({numQuery, k}, torch::kInt64);
         int64_t* raw_ptr = indices_tensor.data_ptr<int64_t>();
         
-        if (numDimensions > 8 && 
-            numDimensions != 16 && 
-            numDimensions != 32)
-        {
-            #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_knn<0>(points_ptr + i * numDimensions, k, raw_ptr + i * k);
-        }
-        else if (numDimensions == 1)
-        {
-            #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_knn<1>(points_ptr + i * numDimensions, k, raw_ptr + i * k);
-        }
-        else if (numDimensions == 2)
-        {
-            #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_knn<2>(points_ptr + i * numDimensions, k, raw_ptr + i * k);
-        }
-        else if (numDimensions == 3)
-        {
-            #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_knn<3>(points_ptr + i * numDimensions, k, raw_ptr + i * k);
-        }
-        else if (numDimensions == 4)
-        {
-            #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_knn<4>(points_ptr + i * numDimensions, k, raw_ptr + i * k);
-        }
-        else if (numDimensions == 5)
-        {
-            #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_knn<5>(points_ptr + i * numDimensions, k, raw_ptr + i * k);
-        }
-        else if (numDimensions == 6)
-        {
-            #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_knn<6>(points_ptr + i * numDimensions, k, raw_ptr + i * k);
-        }
-        else if (numDimensions == 7)
-        {
-            #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_knn<7>(points_ptr + i * numDimensions, k, raw_ptr + i * k);
-        }
-        else if (numDimensions == 8)
-        {
-            #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_knn<8>(points_ptr + i * numDimensions, k, raw_ptr + i * k);
-        }
-        else if (numDimensions == 16)
-        {
-            #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_knn<16>(points_ptr + i * numDimensions, k, raw_ptr + i * k);
-        }
-        else if (numDimensions == 32)
-        {
-            #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_knn<32>(points_ptr + i * numDimensions, k, raw_ptr + i * k);
-        }
+        Dispatcher<WorkerKnn>::dispatch(numDimensions,
+                                        this, points_ptr, raw_ptr, numDimensions, numQuery, k);
     }
 
     return indices_tensor;

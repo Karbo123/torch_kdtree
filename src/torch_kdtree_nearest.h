@@ -116,6 +116,15 @@ void TorchKDTree::_search_nearest<0>(const float* point, int64_t* out_)
 }
 
 
+template<int N>
+struct WorkerNearest
+{
+    static void work(TorchKDTree* tree_ptr, float* points_ptr, int64_t* raw_ptr, int numDimensions, int numQuery)
+    {
+        #pragma omp parallel for
+        for (sint i = 0; i < numQuery; ++i) tree_ptr->_search_nearest<N>(points_ptr + i * numDimensions, raw_ptr + i);
+    }
+};
 
 torch::Tensor TorchKDTree::search_nearest(torch::Tensor points)
 {
@@ -136,63 +145,8 @@ torch::Tensor TorchKDTree::search_nearest(torch::Tensor points)
         indices_tensor = torch::zeros({numQuery}, torch::kInt64);
         int64_t* raw_ptr = indices_tensor.data_ptr<int64_t>();
         
-        if (numDimensions > 8 && 
-            numDimensions != 16 && 
-            numDimensions != 32)
-        {
-            #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_nearest<0>(points_ptr + i * numDimensions, raw_ptr + i);
-        }
-        else if (numDimensions == 1)
-        {
-            #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_nearest<1>(points_ptr + i * numDimensions, raw_ptr + i);
-        }
-        else if (numDimensions == 2)
-        {
-            #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_nearest<2>(points_ptr + i * numDimensions, raw_ptr + i);
-        }
-        else if (numDimensions == 3)
-        {
-            #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_nearest<3>(points_ptr + i * numDimensions, raw_ptr + i);
-        }
-        else if (numDimensions == 4)
-        {
-            #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_nearest<4>(points_ptr + i * numDimensions, raw_ptr + i);
-        }
-        else if (numDimensions == 5)
-        {
-            #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_nearest<5>(points_ptr + i * numDimensions, raw_ptr + i);
-        }
-        else if (numDimensions == 6)
-        {
-            #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_nearest<6>(points_ptr + i * numDimensions, raw_ptr + i);
-        }
-        else if (numDimensions == 7)
-        {
-            #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_nearest<7>(points_ptr + i * numDimensions, raw_ptr + i);
-        }
-        else if (numDimensions == 8)
-        {
-            #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_nearest<8>(points_ptr + i * numDimensions, raw_ptr + i);
-        }
-        else if (numDimensions == 16)
-        {
-            #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_nearest<16>(points_ptr + i * numDimensions, raw_ptr + i);
-        }
-        else if (numDimensions == 32)
-        {
-            #pragma omp parallel for
-            for (sint i = 0; i < numQuery; ++i) _search_nearest<32>(points_ptr + i * numDimensions, raw_ptr + i);
-        }
+        Dispatcher<WorkerNearest>::dispatch(numDimensions,
+                                            this, points_ptr, raw_ptr, numDimensions, numQuery);
     }
 
     return indices_tensor;

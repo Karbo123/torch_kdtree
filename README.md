@@ -33,7 +33,7 @@ cmake .. \
 
 # usage
 
-please check the testing script in `test/` folder.
+please check the testing script in `test/performance/` folder.
 
 
 # benchmarking
@@ -90,4 +90,32 @@ totalTime = 0.0067  initTime = 0.0010  sortTime + removeDuplicatesTime = 0.0026 
 - [ ] CUDA query
 
 other ref: [Traversal on CUDA](https://developer.nvidia.com/blog/thinking-parallel-part-ii-tree-traversal-gpu/)
+
+
+
+
+
+
+
+
+<!-- ---
+
+global variables to be removed:
+```
+d_partitionError
+
+d_verifyKdTreeError
+
+skc_error
+d_RanksA     d_RanksB     d_LimitsA     d_LimitsB
+maxSampleCount
+d_mpi
+d_pivot
+
+d_removeDupsCount
+d_removeDupsError
+d_removeDupsErrorAdr
+
+gpu
+``` -->
 
