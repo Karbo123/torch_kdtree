@@ -155,7 +155,7 @@ template<uint sortDir> static inline __device__ uint binarySearchExclusive(uint 
 // *b         b coordinates
 // p          index of the first
 
-__device__ int skc_error;
+// __device__ int skc_error;
 
 __device__ KdCoord superKeyCompareFirstDimSmpl(const KdCoord ap, const KdCoord bp, const KdCoord *a, const KdCoord *b, const sint p, const sint dim)
 {
@@ -704,9 +704,9 @@ void Gpu::mergeElementaryInterRefs(
 	}
 }
 
-uint *d_RanksA, *d_RanksB, *d_LimitsA, *d_LimitsB;
-uint maxSampleCount;
-sint *d_mpi;  //This is where the per partition merge path data will get stored.
+// uint *d_RanksA, *d_RanksB, *d_LimitsA, *d_LimitsB;
+// uint maxSampleCount;
+// sint *d_mpi;  //This is where the per partition merge path data will get stored.
 
 
 void Gpu::initMergeSortSmpl(uint N)
@@ -837,14 +837,15 @@ Comparison Based Sorting for Systems with MultipleGPUs
 by Ivan Tanasic, Lluís Vilanova, Marc Jord , Javier Cabezas, Isaac Gelado,  Nacho Navarro, and  Wen-mei Hwu
  */
 
-__device__ uint d_pivot;
+// __device__ uint d_pivot;
 
 template<uint sortDir> __global__ void pivotSelection(KdCoord coordA[], KdCoord valA[], refIdx_t refA[],
 		KdCoord coordB[], KdCoord valB[], refIdx_t refB[],
-		sint p, sint dim, uint L)
+		sint p, sint dim, uint L,
+		uint* d_pivot)
 {
 	if (L == 0)  {
-		d_pivot = 0;
+		*d_pivot = 0;
 		return;
 	}
 
@@ -860,7 +861,7 @@ template<uint sortDir> __global__ void pivotSelection(KdCoord coordA[], KdCoord 
 					//  a[len(a) − pivot] > b[pivot − 1] then
 					(( sortDir && (superKeyCompareFirstDimSmpl(valA[L - pivot], valB[pivot - 1], coordA+refA[L- pivot]*dim, coordB+refB[pivot - 1]*dim, p, dim) > 0)) ||
 							(!sortDir && (superKeyCompareFirstDimSmpl(valA[L - pivot], valB[pivot - 1], coordA+refA[L- pivot]*dim, coordB+refB[pivot - 1]*dim, p, dim) < 0)))) {
-				d_pivot = pivot;
+				*d_pivot = pivot;
 				return;
 			} else {
 				pivot = pivot - stride;
@@ -876,15 +877,15 @@ template<uint sortDir> __global__ void pivotSelection(KdCoord coordA[], KdCoord 
 			(!sortDir && (superKeyCompareFirstDimSmpl(valA[0], valB[L - 1], coordA+refA[0]*dim, coordB+refB[L - 1]*dim, p, dim) < 0)))) {
 		pivot = L;
 	}
-	d_pivot = pivot;
+	*d_pivot = pivot;
 }
 
 static __global__ void pivotSwap(KdCoord coordA[], KdCoord valA[], refIdx_t refA[],
 		KdCoord coordB[], KdCoord valB[], refIdx_t refB[],
-		sint p, sint dim, uint L){
+		sint p, sint dim, uint L, uint* d_pivot){
 	uint numThreads = gridDim.x * blockDim.x;
 	uint pos = blockIdx.x * blockDim.x + threadIdx.x;
-	uint pivot = d_pivot;
+	uint pivot = *d_pivot;
 	refA   += (L - pivot);
 	valA   += (L - pivot);
 	for (uint swapi = pos; swapi < (pivot)*dim; swapi += numThreads) {
@@ -917,18 +918,19 @@ uint Gpu::balancedSwap(KdCoord* coordA, KdCoord* valA, refIdx_t* refA,
 	{
 		setDevice();
 		if (sortDir == 0) {
-			pivotSelection<0U><<<1,1, 0, stream>>>(coordA, valA, refA, coordB, valB, refB, p, dim, NperG);
+			pivotSelection<0U><<<1,1, 0, stream>>>(coordA, valA, refA, coordB, valB, refB, p, dim, NperG, d_pivot);
 		} else {
-			pivotSelection<1U><<<1,1, 0, stream>>>(coordA, valA, refA, coordB, valB, refB, p, dim, NperG);
+			pivotSelection<1U><<<1,1, 0, stream>>>(coordA, valA, refA, coordB, valB, refB, p, dim, NperG, d_pivot);
 		}
 		checkCudaErrors(cudaGetLastError());
 	}
-	cudaMemcpyFromSymbolAsync(&pivot, d_pivot, sizeof(pivot), 0,cudaMemcpyDeviceToHost, stream);
+	// cudaMemcpyFromSymbolAsync(&pivot, d_pivot, sizeof(pivot), 0,cudaMemcpyDeviceToHost, stream);
+	checkCudaErrors(cudaMemcpyAsync(&pivot, d_pivot, sizeof(uint), cudaMemcpyDeviceToHost, stream));
 
 #pragma omp critical (launchLock)
 	{
 		setDevice();
-		pivotSwap<<<numThreads,1024, 0, stream>>>(coordA, valA, refA, coordB, valB, refB, p, dim, NperG);
+		pivotSwap<<<numThreads,1024, 0, stream>>>(coordA, valA, refA, coordB, valB, refB, p, dim, NperG, d_pivot);
 		checkCudaErrors(cudaGetLastError());
 	}
 	return pivot;

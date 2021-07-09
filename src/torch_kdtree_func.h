@@ -129,7 +129,7 @@ using namespace std;
 
 #endif
 
-Gpu *gpu;
+// Gpu *gpu;
 
 /*
  * The superKeyCompare method compares two sint arrays in all k dimensions,

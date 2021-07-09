@@ -80,6 +80,10 @@ private:
 	refIdx_t    rootNode;      // Store the root node here so all partitionDim rouotines can get to it.
 	sint* d_partitionError;
 	uint* d_verifyKdTreeError;
+	uint* d_pivot;
+	uint* d_removeDupsCount;
+	sint* d_removeDupsError;
+	sint* d_removeDupsErrorAdr;
 
 public:
 	// Constructor
@@ -103,6 +107,10 @@ public:
 		d_midRefs[1] = NULL;
 		checkCudaErrors(cudaMalloc((void**)&d_partitionError, sizeof(sint))); 
 		checkCudaErrors(cudaMalloc((void**)&d_verifyKdTreeError, sizeof(uint))); 
+		checkCudaErrors(cudaMalloc((void**)&d_pivot, sizeof(uint))); 
+		checkCudaErrors(cudaMalloc((void**)&d_removeDupsCount, sizeof(uint))); 
+		checkCudaErrors(cudaMalloc((void**)&d_removeDupsError, sizeof(sint))); 
+		checkCudaErrors(cudaMalloc((void**)&d_removeDupsErrorAdr, sizeof(sint))); 
 
 		setDevice();
 		checkCudaErrors(cudaStreamCreate(&stream));
@@ -136,6 +144,14 @@ public:
 			checkCudaErrors(cudaFree(d_partitionError));
 		if (d_verifyKdTreeError != NULL)
 			checkCudaErrors(cudaFree(d_verifyKdTreeError));
+		if (d_pivot != NULL)
+			checkCudaErrors(cudaFree(d_pivot));
+		if (d_removeDupsCount != NULL)
+			checkCudaErrors(cudaFree(d_removeDupsCount));
+		if (d_removeDupsError != NULL)
+			checkCudaErrors(cudaFree(d_removeDupsError));
+		if (d_removeDupsErrorAdr != NULL)
+			checkCudaErrors(cudaFree(d_removeDupsErrorAdr));
 
 		checkCudaErrors(cudaEventDestroy(start));
 		checkCudaErrors(cudaEventDestroy(stop));

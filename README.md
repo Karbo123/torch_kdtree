@@ -86,36 +86,8 @@ totalTime = 0.0067  initTime = 0.0010  sortTime + removeDuplicatesTime = 0.0026 
 # TODO
 
 - [ ] multiple trees memory conflict
-- [ ] remove all global variables such as `d_verifyKdTreeError`
+- [x] remove all global variables such as `d_verifyKdTreeError`
 - [ ] CUDA query
 
 other ref: [Traversal on CUDA](https://developer.nvidia.com/blog/thinking-parallel-part-ii-tree-traversal-gpu/)
-
-
-
-
-
-
-
-
-<!-- ---
-
-global variables to be removed:
-```
-d_partitionError                                              [okey]
-
-d_verifyKdTreeError                                           [okey]
-
-skc_error
-d_RanksA     d_RanksB     d_LimitsA     d_LimitsB
-maxSampleCount
-d_mpi
-d_pivot
-
-d_removeDupsCount
-d_removeDupsError
-d_removeDupsErrorAdr
-
-gpu
-``` -->
 

@@ -88,12 +88,12 @@ __device__ void cuWarpCopyRefVal(refIdx_t refout[], KdCoord valout[], refIdx_t r
 
 }
 
-__device__ uint d_removeDupsCount;  	// This is where number of tuples after the dups are removed is returned.
-__device__ sint  d_removeDupsError;  	// This is where an error is indicated.
-__device__ sint  d_removeDupsErrorAdr;  // This is where number of tuples after the dups are removed is returned.
+// __device__ uint d_removeDupsCount;  	// This is where number of tuples after the dups are removed is returned.
+// __device__ sint  d_removeDupsError;  	// This is where an error is indicated.
+// __device__ sint  d_removeDupsErrorAdr;  // This is where number of tuples after the dups are removed is returned.
 
 __global__ void cuRemoveGaps(refIdx_t refoutx[], KdCoord valoutx[], refIdx_t refinx[], KdCoord valinx[],
-		uint segSizex, uint segLengths[], const sint numTuples) {
+		uint segSizex, uint segLengths[], const sint numTuples, uint* d_removeDupsCount) {
 	uint pos = blockIdx.x * blockDim.x + threadIdx.x;
 	uint thrdIdx = (pos & (warpSize-1));
 	uint warpIndex = ((pos - thrdIdx)/warpSize);
@@ -117,7 +117,7 @@ __global__ void cuRemoveGaps(refIdx_t refoutx[], KdCoord valoutx[], refIdx_t ref
 
 	// if this warp is processing the last segment, store the final size
 	if (thrdIdx == 0 && ((segStartIn + segSizex) >= numTuples))
-		d_removeDupsCount = segStartOut + segLengths[warpIndex];
+		*d_removeDupsCount = segStartOut + segLengths[warpIndex];
 }
 
 __global__ void cuCopyRefVal(refIdx_t refoutx[], KdCoord valoutx[], refIdx_t refinx[], KdCoord valinx[],
@@ -142,7 +142,7 @@ __global__ void cuCopyRefVal(refIdx_t refoutx[], KdCoord valoutx[], refIdx_t ref
 
 __global__ void cuRemoveDups(KdCoord coords[], refIdx_t refoutx[], KdCoord valoutx[], refIdx_t refinx[], KdCoord valinx[],
 		KdCoord otherCoords[], refIdx_t *otherRef,
-		const int p, const int dim, uint segSizex, uint segLengths[], const sint numTuples)
+		const int p, const int dim, uint segSizex, uint segLengths[], const sint numTuples, sint* d_removeDupsError, sint* d_removeDupsErrorAdr)
 {
 	uint pos = blockIdx.x * blockDim.x + threadIdx.x;
 	uint thrdIdx = (pos & (warpSize-1));
@@ -203,8 +203,8 @@ __global__ void cuRemoveDups(KdCoord coords[], refIdx_t refoutx[], KdCoord valou
 		}
 		// First check for compare failure which is earlier value is gt current
 		if (cmp<0) {
-			d_removeDupsError = -1;
-			atomicMin(&d_removeDupsErrorAdr, (valin - valinx)  + thrdIdx);
+			*d_removeDupsError = -1;
+			atomicMin(d_removeDupsErrorAdr, (valin - valinx)  + thrdIdx);
 		}
 		valin += warpSize;
 		refin += warpSize;
@@ -242,8 +242,8 @@ __global__ void cuRemoveDups(KdCoord coords[], refIdx_t refoutx[], KdCoord valou
 		}
 		// First check for compare failure which is earlier value is gt current
 		if (cmp<0) {
-			d_removeDupsError = -1;
-			atomicMin(&d_removeDupsErrorAdr, (valin - valinx)  + thrdIdx);
+			*d_removeDupsError = -1;
+			atomicMin(d_removeDupsErrorAdr, (valin - valinx)  + thrdIdx);
 		}
 
 		valin += warpSize;
@@ -334,21 +334,23 @@ uint Gpu::removeDups(KdCoord coords[], KdCoord val[], refIdx_t ref[], KdCoord va
 	// Clear the error flag and address
 	uint removeDupsError = 0;
 	uint removeDupsErrorAdr = 0x7FFFFFFF;
-	checkCudaErrors(cudaMemcpyToSymbolAsync(d_removeDupsError,    &removeDupsError,    sizeof(d_removeDupsError), 0, cudaMemcpyHostToDevice, stream));
-	checkCudaErrors(cudaMemcpyToSymbolAsync(d_removeDupsErrorAdr, &removeDupsErrorAdr, sizeof(d_removeDupsError), 0, cudaMemcpyHostToDevice, stream));
+	// checkCudaErrors(cudaMemcpyToSymbolAsync(d_removeDupsError,    &removeDupsError,    sizeof(d_removeDupsError), 0, cudaMemcpyHostToDevice, stream));
+	// checkCudaErrors(cudaMemcpyToSymbolAsync(d_removeDupsErrorAdr, &removeDupsErrorAdr, sizeof(d_removeDupsError), 0, cudaMemcpyHostToDevice, stream));
+	checkCudaErrors(cudaMemcpyAsync(d_removeDupsError, &removeDupsError, sizeof(sint), cudaMemcpyHostToDevice, stream));
+	checkCudaErrors(cudaMemcpyAsync(d_removeDupsErrorAdr, &removeDupsErrorAdr, sizeof(sint), cudaMemcpyHostToDevice, stream));
 
 #pragma omp critical (launchLock)
 	{
 		setDevice();
 		checkCudaErrors(cudaMalloc((void **)&d_segLengths, numThreads/32 * sizeof(uint)));
 		cuRemoveDups<<<numBlocks, numThrdPerBlk>>>(coords, reftmp, valtmp, refin, valin, otherCoord, otherRef,
-				p, dim, segSize, d_segLengths, numTuples);
+				p, dim, segSize, d_segLengths, numTuples, d_removeDupsError, d_removeDupsErrorAdr);
 	}
 	checkCudaErrors(cudaGetLastError());
 #pragma omp critical (launchLock)
 	{
 		setDevice();
-		cuRemoveGaps<<<numBlocks, numThrdPerBlk>>>(ref, val, reftmp, valtmp, segSize, d_segLengths, numTuples);
+		cuRemoveGaps<<<numBlocks, numThrdPerBlk>>>(ref, val, reftmp, valtmp, segSize, d_segLengths, numTuples, d_removeDupsCount);
 		checkCudaErrors(cudaGetLastError());
 	}
 
@@ -363,15 +365,18 @@ uint Gpu::removeDups(KdCoord coords[], KdCoord val[], refIdx_t ref[], KdCoord va
 #endif
 
 	// Check to see if any sort errors were detected
-	checkCudaErrors(cudaMemcpyFromSymbolAsync(&removeDupsError, d_removeDupsError, sizeof(d_removeDupsError), 0, cudaMemcpyDeviceToHost, stream));
+	// checkCudaErrors(cudaMemcpyFromSymbolAsync(&removeDupsError, d_removeDupsError, sizeof(d_removeDupsError), 0, cudaMemcpyDeviceToHost, stream));
+	checkCudaErrors(cudaMemcpyAsync(&removeDupsError, d_removeDupsError, sizeof(sint), cudaMemcpyDeviceToHost, stream));
 	if (removeDupsError != 0) {
 		cout << "Remove Duplicates found a sorting error on dimension " << p  << endl;
-		checkCudaErrors(cudaMemcpyFromSymbolAsync(&removeDupsErrorAdr, d_removeDupsErrorAdr, sizeof(d_removeDupsErrorAdr), 0, cudaMemcpyDeviceToHost, stream));
+		// checkCudaErrors(cudaMemcpyFromSymbolAsync(&removeDupsErrorAdr, d_removeDupsErrorAdr, sizeof(d_removeDupsErrorAdr), 0, cudaMemcpyDeviceToHost, stream));
+		checkCudaErrors(cudaMemcpyAsync(&removeDupsErrorAdr, d_removeDupsErrorAdr, sizeof(sint), cudaMemcpyDeviceToHost, stream));
 		cout << "at address  " << removeDupsErrorAdr << endl;
 		return removeDupsError;
 	}
 	// If not return the resulting count.
 	uint removeDupsCount;
-	checkCudaErrors(cudaMemcpyFromSymbolAsync(&removeDupsCount, d_removeDupsCount, sizeof(d_removeDupsCount), 0, cudaMemcpyDeviceToHost, stream));
+	// checkCudaErrors(cudaMemcpyFromSymbolAsync(&removeDupsCount, d_removeDupsCount, sizeof(d_removeDupsCount), 0, cudaMemcpyDeviceToHost, stream));
+	checkCudaErrors(cudaMemcpyAsync(&removeDupsCount, d_removeDupsCount, sizeof(uint), cudaMemcpyDeviceToHost, stream));
 	return removeDupsCount;
 }
