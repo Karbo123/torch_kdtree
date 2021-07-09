@@ -44,7 +44,6 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort =
 
 ////////////////////////////////////////////////////////////////
 
-std::string environ_cuda           = "";
 const int numThreads               = 512; // max is 1024
 const int numBlocks                = 32;  // max is 1024
 constexpr int numPreCompileDimsMax = 32;  // the max num of dims to precompile

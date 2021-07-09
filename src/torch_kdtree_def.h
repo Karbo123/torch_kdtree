@@ -11,6 +11,7 @@ public:
     sint numDimensions;
     bool is_cuda;
     Gpu* device;
+    std::string environ_cuda; // the string describing the cuda setup environment
 
     ///////////////////////////////////////////////////////////////////
     TorchKDTree(sint _numPoints, sint _numDimensions);
@@ -64,7 +65,8 @@ TorchKDTree::TorchKDTree(sint _numPoints, sint _numDimensions):
                             root(-1), 
                             numPoints(_numPoints), numDimensions(_numDimensions), 
                             is_cuda(true),
-                            device(nullptr)
+                            device(nullptr),
+                            environ_cuda("")
 {
     kdNodes = new KdNode[_numPoints];
     coordinates = new float[_numPoints * _numDimensions];
@@ -84,6 +86,7 @@ TorchKDTree::TorchKDTree(TorchKDTree&& _tree)
     numDimensions = _tree.numDimensions;
     is_cuda = _tree.is_cuda;
     device = _tree.device; _tree.device = nullptr;
+    environ_cuda = _tree.environ_cuda; _tree.environ_cuda = "";
 }
 
 TorchKDTree::~TorchKDTree()

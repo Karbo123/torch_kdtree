@@ -34,7 +34,7 @@ TorchKDTree torchBuildCUDAKDTree(torch::Tensor data_float)
     _str_stream << "numBlocks="     << numBlocks     << ", ";
     _str_stream << "numDimensions=" << numDimensions;
     std::string environ_cuda_target = _str_stream.str();
-    if (environ_cuda != environ_cuda_target)
+    if (tree.environ_cuda != environ_cuda_target)
     {
         tree.device = Gpu::gpuSetup(numThreads, numBlocks, gpuId, numDimensions);
         if (tree.device->getNumThreads() == 0 || tree.device->getNumBlocks() == 0) 
@@ -49,7 +49,7 @@ TorchKDTree torchBuildCUDAKDTree(torch::Tensor data_float)
                   << "numThreads=" << numThreads << ", "
                   << "numBlocks=" << numBlocks << std::endl;
         
-        environ_cuda = environ_cuda_target;
+        tree.environ_cuda = environ_cuda_target;
     }
 
     // create the tree
