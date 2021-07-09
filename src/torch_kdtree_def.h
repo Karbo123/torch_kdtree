@@ -180,6 +180,14 @@ float TorchKDTree::distance<0>(const float* point_a, const float* point_b)
     return sum;
 }
 
+template<> inline
+float TorchKDTree::distance<3>(const float* point_a, const float* point_b)
+{
+    return POW2(point_a[0] - point_b[0]) + \
+           POW2(point_a[1] - point_b[1]) + \
+           POW2(point_a[2] - point_b[2]);
+}
+
 template<int dim> inline
 float TorchKDTree::distance_plane(const float* point, refIdx_t node)
 {
