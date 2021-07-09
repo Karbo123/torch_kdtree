@@ -79,6 +79,7 @@ private:
 	uint 		num;           // Number of tuples or points
 	refIdx_t    rootNode;      // Store the root node here so all partitionDim rouotines can get to it.
 	sint* d_partitionError;
+	uint* d_verifyKdTreeError;
 
 public:
 	// Constructor
@@ -101,6 +102,7 @@ public:
 		d_midRefs[0] = NULL;
 		d_midRefs[1] = NULL;
 		checkCudaErrors(cudaMalloc((void**)&d_partitionError, sizeof(sint))); 
+		checkCudaErrors(cudaMalloc((void**)&d_verifyKdTreeError, sizeof(uint))); 
 
 		setDevice();
 		checkCudaErrors(cudaStreamCreate(&stream));
@@ -132,6 +134,8 @@ public:
 			checkCudaErrors(cudaFree(d_end));
 		if (d_partitionError != NULL)
 			checkCudaErrors(cudaFree(d_partitionError));
+		if (d_verifyKdTreeError != NULL)
+			checkCudaErrors(cudaFree(d_verifyKdTreeError));
 
 		checkCudaErrors(cudaEventDestroy(start));
 		checkCudaErrors(cudaEventDestroy(stop));

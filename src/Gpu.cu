@@ -652,7 +652,7 @@ refIdx_t Gpu::buildKdTree(KdNode kdNodes[], const sint numTuples, const sint dim
  */
 
 // TODO use a negative value in g_sums[0] to indicate an error instead so a global is not needed.
-__device__ uint d_verifyKdTreeError;
+// __device__ uint d_verifyKdTreeError;
 
 __global__ void cuAssignment(KdNode kdNodes[], refIdx_t nextRefs[], refIdx_t refs[], const sint num, const sint p)
 {
@@ -691,7 +691,7 @@ __global__ void cuAssignment(KdNode kdNodes[], refIdx_t nextRefs[], refIdx_t ref
 }
 
 // TODO create a __device__ function to handle the summation within a block.
-__global__ void cuVerifyKdTree(const KdNode kdNodes[], const KdCoord coord[], sint g_sums[], refIdx_t nextRefs[], refIdx_t refs[], const sint num, const sint p, const sint dim) {
+__global__ void cuVerifyKdTree(const KdNode kdNodes[], const KdCoord coord[], sint g_sums[], refIdx_t nextRefs[], refIdx_t refs[], const sint num, const sint p, const sint dim, uint* d_verifyKdTreeError) {
 
 	const sint pos = threadIdx.x + blockIdx.x * blockDim.x;
 	const sint tid = threadIdx.x;
@@ -711,7 +711,7 @@ __global__ void cuVerifyKdTree(const KdNode kdNodes[], const KdCoord coord[], si
 				KdCoord cmp = cuSuperKeyCompare(coord+kdNodes[child].tuple*dim, coord+kdNodes[node].tuple*dim, p, dim);
 				if (cmp <= 0) {  // gtChild .le. self is an error so indicate that.
 					//	  nextRefs[i*2+1] = -node;  // Overwrite the child with the error code
-					d_verifyKdTreeError = 1; // and mark the error
+					*d_verifyKdTreeError = 1; // and mark the error
 				}
 			}
 
@@ -722,7 +722,7 @@ __global__ void cuVerifyKdTree(const KdNode kdNodes[], const KdCoord coord[], si
 				KdCoord cmp = cuSuperKeyCompare(coord+kdNodes[child].tuple*dim, coord+kdNodes[node].tuple*dim, p, dim);
 				if (cmp >= 0) {  // gtChild .ge. self is an error so indicate that.
 					//	  nextRefs[i*2] = -node;  // Overwrite the child with the error code
-					d_verifyKdTreeError = 1;
+					*d_verifyKdTreeError = 1;
 				}
 			}
 		} else {
@@ -851,9 +851,10 @@ sint Gpu::verifyKdTreeGPU(const sint root, const sint startP, const sint dim, co
 
 	// Clear the error flag in the GPU
 	sint verifyKdTreeError = 0;
-	cudaMemcpyToSymbolAsync(d_verifyKdTreeError, &verifyKdTreeError,
-			sizeof(verifyKdTreeError),
-			0,cudaMemcpyHostToDevice, stream);
+	// cudaMemcpyToSymbolAsync(d_verifyKdTreeError, &verifyKdTreeError,
+	// 		sizeof(verifyKdTreeError),
+	// 		0,cudaMemcpyHostToDevice, stream);
+	checkCudaErrors(cudaMemcpyAsync(d_verifyKdTreeError, &verifyKdTreeError, sizeof(uint), cudaMemcpyHostToDevice, stream));
 
 	// Loop through the levels
 	for (sint level = 0;  level < logNumTuples+1; level++) {
@@ -887,14 +888,16 @@ sint Gpu::verifyKdTreeGPU(const sint root, const sint startP, const sint dim, co
 					d_sums,
 					nextChildren,
 					children,
-					(1<<level), p, dim);
+					(1<<level), p, dim,
+					d_verifyKdTreeError);
 			checkCudaErrors(cudaGetLastError());
 		}
 		// Check for error on the last run
-		cudaMemcpyFromSymbolAsync(&verifyKdTreeError,
-				d_verifyKdTreeError,
-				sizeof(verifyKdTreeError),
-				0,cudaMemcpyDeviceToHost, stream);
+		// cudaMemcpyFromSymbolAsync(&verifyKdTreeError,
+		// 		d_verifyKdTreeError,
+		// 		sizeof(verifyKdTreeError),
+		// 		0,cudaMemcpyDeviceToHost, stream);
+		checkCudaErrors(cudaMemcpyAsync(&verifyKdTreeError, d_verifyKdTreeError, sizeof(uint), cudaMemcpyDeviceToHost, stream));
 		syncGPU();  // Wait
 		if (verifyKdTreeError != 0){  // See if the kernel for this level found an error
 			cout << "Verify Tree Error at level " << level << endl;

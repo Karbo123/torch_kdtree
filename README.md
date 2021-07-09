@@ -102,9 +102,9 @@ other ref: [Traversal on CUDA](https://developer.nvidia.com/blog/thinking-parall
 
 global variables to be removed:
 ```
-d_partitionError
+d_partitionError                                              [okey]
 
-d_verifyKdTreeError
+d_verifyKdTreeError                                           [okey]
 
 skc_error
 d_RanksA     d_RanksB     d_LimitsA     d_LimitsB
