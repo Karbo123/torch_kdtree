@@ -38,56 +38,16 @@ please check the testing script in `test/performance/` folder.
 
 # benchmarking
 
-setting: build with 262144 points, query with 262144 points.
-
 **nearest search**
-```
-(python) num = 262144
-numPoints=262144, numDimensions=3, numThreads=512, numBlocks=32
-0 equal nodes removed. 
-Number of nodes = 262144
-totalTime = 0.0071  initTime = 0.0014  sortTime + removeDuplicatesTime = 0.0026  kdTime = 0.0017  verifyTime = 0.0014
-(python) time for building kdtree, moving to cpu, and verification = 0.03239560127258301
-(python) time for querying on cpu using multithreads = 0.05979561805725098
-(python) time for querying on gpu using torch_cluster = 34.12433195114136
-(python) time for querying on cpu using torch_cluster = 0.6985323429107666
-(python) there are 0 mismatches in total
-```
+![](fig/fig_time_nearest.png)
 
-**knn search**
-```
-(python) num = 262144, knn = 5
-numPoints=262144, numDimensions=3, numThreads=512, numBlocks=32
-0 equal nodes removed. 
-Number of nodes = 262144
-totalTime = 0.0076  initTime = 0.0013  sortTime + removeDuplicatesTime = 0.0029  kdTime = 0.0017  verifyTime = 0.0017
-(python) time for building kdtree, moving to cpu, and verification = 0.033992767333984375
-(python) time for querying on cpu using multithreads = 0.14211273193359375
-(python) time for querying on gpu using torch_cluster = 61.90901041030884
-(python) time for querying on cpu using torch_cluster = 1.3592958450317383
-(python) there are 0 mismatches in total
-```
-
-**radius search**
-```
-(python) num = 262144, radius = 100
-numPoints=262144, numDimensions=3, numThreads=512, numBlocks=32
-0 equal nodes removed. 
-Number of nodes = 262144
-totalTime = 0.0067  initTime = 0.0010  sortTime + removeDuplicatesTime = 0.0026  kdTime = 0.0017  verifyTime = 0.0014
-(python) time for building kdtree, moving to cpu, and verification = 0.03257036209106445
-(python) time for querying on cpu using multithreads = 0.19965219497680664
-(python) time for querying on gpu using torch_cluster = 28.944889783859253
-(python) time for querying on cpu using torch_cluster = 2.196791410446167
-(python) time for querying on cpu using cKDTree with 8 threads = 1.28279709815979
-(python) there are 0 mismatches in total
-```
 
 # TODO
 
 - [x] multiple trees memory conflict
 - [x] remove all global variables such as `d_verifyKdTreeError`
 - [ ] CUDA query
+- [ ] support any num of points
 
 other ref: [Traversal on CUDA](https://developer.nvidia.com/blog/thinking-parallel-part-ii-tree-traversal-gpu/)
 
