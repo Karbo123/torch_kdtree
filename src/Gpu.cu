@@ -1009,10 +1009,10 @@ void Gpu::getKdTreeResults(KdNode kdNodes[], const sint numTuples) {
  * threads			Maximum number of threads to use on partitioning
  * blocks			Macimum number of blocks to use on partitioning
  */
-Gpu* Gpu::gpuSetup(int threads, int blocks, int gpuid, int dim)
+Gpu* Gpu::gpuSetup(int threads, int blocks, int dim, int gpuid, cudaStream_t torch_stream)
 {
 	// NOTE: gpuid is the index of the used visible gpu device
-	Gpu* gpu_ptr = new Gpu(threads, blocks, gpuid, dim);
+	Gpu* gpu_ptr = new Gpu(threads, blocks, dim, gpuid, torch_stream);
 	if (gpu_ptr == nullptr)
 	{
 		throw runtime_error("gpuSetup Error: Fail to allocate cuda device");

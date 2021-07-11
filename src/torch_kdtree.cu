@@ -21,7 +21,10 @@ TorchKDTree torchBuildCUDAKDTree(torch::Tensor data_float)
     sint numPoints = data_float.size(0);
     sint numDimensions = data_float.size(1);
     sint gpuId = data_float.device().index();
+    cudaStream_t torch_stream = at::cuda::getCurrentCUDAStream(gpuId);
 
+    checkCudaErrors(cudaSetDevice(gpuId));
+    
     TorchKDTree tree(numPoints, numDimensions);
     
     // copy coordinates to host // TODO do not copy for speed
@@ -36,7 +39,7 @@ TorchKDTree torchBuildCUDAKDTree(torch::Tensor data_float)
     std::string environ_cuda_target = _str_stream.str();
     if (tree.environ_cuda != environ_cuda_target)
     {
-        tree.device = Gpu::gpuSetup(numThreads, numBlocks, gpuId, numDimensions);
+        tree.device = Gpu::gpuSetup(numThreads, numBlocks, numDimensions, gpuId, torch_stream);
         if (tree.device->getNumThreads() == 0 || tree.device->getNumBlocks() == 0) 
         {
             _str_stream.str("");

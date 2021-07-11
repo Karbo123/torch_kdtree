@@ -85,7 +85,7 @@ totalTime = 0.0067  initTime = 0.0010  sortTime + removeDuplicatesTime = 0.0026 
 
 # TODO
 
-- [ ] multiple trees memory conflict
+- [x] multiple trees memory conflict
 - [x] remove all global variables such as `d_verifyKdTreeError`
 - [ ] CUDA query
 

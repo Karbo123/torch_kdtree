@@ -53,7 +53,7 @@ class Gpu {
 
 public:
 	// These are the API methods used outside the class.  They hide any details about the GPUs from the main program.
-	static Gpu* gpuSetup(int threads, int blocks, int gpuid, int dim);
+	static Gpu* gpuSetup(int threads, int blocks, int dim, int gpuid, cudaStream_t torch_stream);
 	void        initializeKdNodesArray(KdCoord coordinates[], const sint numTuples, const sint dim);
 	void        mergeSort(sint end[], const sint numTuples, const sint dim);
 	refIdx_t    buildKdTree(KdNode kdNodes[], const sint numTuples, const sint dim);
@@ -87,7 +87,7 @@ private:
 
 public:
 	// Constructor
-	Gpu(int threads, int blocks, int dev, int dim) {
+	Gpu(int threads, int blocks, int dim, int dev, cudaStream_t torch_stream) {
 		devID = dev;
 		numThreads = threads;
 		if (numThreads>MAX_THREADS) numThreads = 0;
@@ -105,6 +105,11 @@ public:
 		d_segLengthsGT = NULL;
 		d_midRefs[0] = NULL;
 		d_midRefs[1] = NULL;
+
+		setDevice();
+		// checkCudaErrors(cudaStreamCreate(&stream));
+		stream = torch_stream;
+		
 		checkCudaErrors(cudaMalloc((void**)&d_partitionError, sizeof(sint))); 
 		checkCudaErrors(cudaMalloc((void**)&d_verifyKdTreeError, sizeof(uint))); 
 		checkCudaErrors(cudaMalloc((void**)&d_pivot, sizeof(uint))); 
@@ -112,8 +117,6 @@ public:
 		checkCudaErrors(cudaMalloc((void**)&d_removeDupsError, sizeof(sint))); 
 		checkCudaErrors(cudaMalloc((void**)&d_removeDupsErrorAdr, sizeof(sint))); 
 
-		setDevice();
-		checkCudaErrors(cudaStreamCreate(&stream));
 		checkCudaErrors(cudaEventCreate(&syncEvent));
 		checkCudaErrors(cudaEventCreate(&start));
 		checkCudaErrors(cudaEventCreate(&stop));
@@ -155,7 +158,7 @@ public:
 
 		checkCudaErrors(cudaEventDestroy(start));
 		checkCudaErrors(cudaEventDestroy(stop));
-		checkCudaErrors(cudaStreamDestroy(stream));
+		// checkCudaErrors(cudaStreamDestroy(stream));
 		num = 0;
 	}
 
