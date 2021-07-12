@@ -1022,3 +1022,54 @@ Gpu* Gpu::gpuSetup(int threads, int blocks, int dim, int gpuid, cudaStream_t tor
 
 
 
+/////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////
+// https://blog.csdn.net/FreeeLinux/article/details/52075018
+
+
+__global__ void cuInitSearch(sint num_of_points, 
+                             NodeCoordIndices* d_index_down,  refIdx_t root_index, 
+                             FrontEndIndices* d_queue_frontend)
+{
+    const int tid = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (tid < num_of_points)
+    {
+        d_index_down[tid].node_index = root_index;
+        d_index_down[tid].coord_index = tid;
+        d_queue_frontend[tid].front_index = -1;
+        d_queue_frontend[tid].end_index = -1;
+    }
+}
+
+void Gpu::InitSearch(sint _num_of_points)
+{
+	InitQueryMem(_num_of_points);
+
+	sint zero_sint = 0;
+	sint num_sint = num_of_points;
+	checkCudaErrors(cudaMemcpyAsync(d_num_temp, &zero_sint, sizeof(sint), cudaMemcpyHostToDevice, stream));
+	checkCudaErrors(cudaMemcpyAsync(d_num_down, &num_sint, sizeof(sint), cudaMemcpyHostToDevice, stream));
+	checkCudaErrors(cudaMemcpyAsync(d_num_up, &zero_sint, sizeof(sint), cudaMemcpyHostToDevice, stream));
+
+	const int total_num = num_of_points;
+	const int thread_num = std::min(numThreads, total_num);
+	const int block_num = int(std::ceil(total_num / float(thread_num)));
+	cuInitSearch<<<block_num, thread_num, 0, stream>>>(num_of_points, d_index_down, rootNode, d_queue_frontend);
+	checkCudaErrors(cudaGetLastError());
+}
+
+
+// make one step to search down, and update to temp
+__global__ void cuOneStepSearchDown()
+{
+
+}
+
+
+// make one step to search up, and update to temp
+__global__ void cuOneStepSearchUp()
+{
+
+}
+

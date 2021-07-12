@@ -46,10 +46,15 @@ using namespace std;
 
 #include "KdNode.h"
 
+struct NodeCoordIndices { refIdx_t node_index; refIdx_t coord_index; };
+struct StartEndIndices { refIdx_t start_index; refIdx_t end_index; };
+struct FrontEndIndices { refIdx_t front_index; refIdx_t end_index; };
+
 class Gpu {
 	// Gpu class constants;
 	static const uint MAX_THREADS = 1024;
 	static const uint MAX_BLOCKS = 1024;
+	static const sint CUDA_QUEUE_MAX = 8; // the assumed max size of one queue
 
 public:
 	// These are the API methods used outside the class.  They hide any details about the GPUs from the main program.
@@ -69,21 +74,33 @@ private:
 	sint 		devID; 			// The GPU device we are talking to.
 	refIdx_t** 	d_references;	// Pointer to array of pointers to reference arrays
 	KdCoord**  	d_values;		// Pointer to array of pointers to value arrays
-	KdCoord* 	d_coord;		// Pointer to coordinate array
-	KdNode* 	d_kdNodes;		// Pointer to array of KdNodes
+	KdCoord* 	d_coord;		// Pointer to coordinate array @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+	KdNode* 	d_kdNodes;		// Pointer to array of KdNodes @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 	sint* 		d_end;         // Pointer to array of end values in th GPU
 	cudaStream_t stream;       // Cuda stream for this GPU
 	cudaEvent_t syncEvent;   	// Cuda sync events
 	cudaEvent_t start, stop;   // Cuda Timer events
 	uint 		dimen;	       // Number of dimensions
 	uint 		num;           // Number of tuples or points
-	refIdx_t    rootNode;      // Store the root node here so all partitionDim rouotines can get to it.
+	refIdx_t    rootNode;      // Store the root node here so all partitionDim rouotines can get to it. @@@@@@@@@@@@@@@@@
 	sint* d_partitionError;
 	uint* d_verifyKdTreeError;
 	uint* d_pivot;
 	uint* d_removeDupsCount;
 	sint* d_removeDupsError;
 	sint* d_removeDupsErrorAdr;
+
+private:
+	// for CUDA querying
+	NodeCoordIndices* d_index_temp;
+	NodeCoordIndices* d_index_down;
+	NodeCoordIndices* d_index_up;
+	sint* d_num_temp;
+	sint* d_num_down;
+	sint* d_num_up;
+	StartEndIndices* d_queue;
+	FrontEndIndices* d_queue_frontend;
+	sint num_of_points;
 
 public:
 	// Constructor
@@ -116,6 +133,16 @@ public:
 		checkCudaErrors(cudaMalloc((void**)&d_removeDupsCount, sizeof(uint))); 
 		checkCudaErrors(cudaMalloc((void**)&d_removeDupsError, sizeof(sint))); 
 		checkCudaErrors(cudaMalloc((void**)&d_removeDupsErrorAdr, sizeof(sint))); 
+
+		d_index_temp = nullptr;
+		d_index_down = nullptr;
+		d_index_up   = nullptr;
+		d_num_temp = nullptr;
+		d_num_down = nullptr;
+		d_num_up   = nullptr;
+		d_queue = nullptr;
+		d_queue_frontend = nullptr;
+		num_of_points = 0;
 
 		checkCudaErrors(cudaEventCreate(&syncEvent));
 		checkCudaErrors(cudaEventCreate(&start));
@@ -155,6 +182,9 @@ public:
 			checkCudaErrors(cudaFree(d_removeDupsError));
 		if (d_removeDupsErrorAdr != NULL)
 			checkCudaErrors(cudaFree(d_removeDupsErrorAdr));
+
+		// free memory for query
+		DestroyQueryMem();
 
 		checkCudaErrors(cudaEventDestroy(start));
 		checkCudaErrors(cudaEventDestroy(stop));
@@ -306,6 +336,49 @@ private: // These are the methods specific verifyKdTree
 	 */
 public:
 	static KdNode *createKdTree(Gpu* device, KdNode kdNodes[], KdCoord coordinates[],  const sint numDimensions, const sint numTuples);
+
+
+//////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////
+private: // functions for query on CUDA
+	void InitQueryMem(sint _num_of_points)
+	{
+		if (_num_of_points > num_of_points) // memory not enough
+		{
+			DestroyQueryMem();
+			checkCudaErrors(cudaMalloc((void**)&d_index_temp, sizeof(NodeCoordIndices) * _num_of_points));
+			checkCudaErrors(cudaMalloc((void**)&d_index_down, sizeof(NodeCoordIndices) * _num_of_points));
+			checkCudaErrors(cudaMalloc((void**)&d_index_up, sizeof(NodeCoordIndices) * _num_of_points));
+			checkCudaErrors(cudaMalloc((void**)&d_num_temp, sizeof(sint)));
+			checkCudaErrors(cudaMalloc((void**)&d_num_down, sizeof(sint)));
+			checkCudaErrors(cudaMalloc((void**)&d_num_up, sizeof(sint)));
+			checkCudaErrors(cudaMalloc((void**)&d_queue, sizeof(StartEndIndices) * _num_of_points * CUDA_QUEUE_MAX));
+			checkCudaErrors(cudaMalloc((void**)&d_queue_frontend, sizeof(FrontEndIndices) * _num_of_points));
+		}
+		num_of_points = _num_of_points; // num of querying points
+	}
+	void DestroyQueryMem()
+	{
+		if (d_index_temp != nullptr)
+			checkCudaErrors(cudaFree(d_index_temp));
+		if (d_index_down != nullptr)
+			checkCudaErrors(cudaFree(d_index_down));
+		if (d_index_up != nullptr)
+			checkCudaErrors(cudaFree(d_index_up));
+		if (d_num_temp != nullptr)
+			checkCudaErrors(cudaFree(d_num_temp));
+		if (d_num_down != nullptr)
+			checkCudaErrors(cudaFree(d_num_down));
+		if (d_num_up != nullptr)
+			checkCudaErrors(cudaFree(d_num_up));
+		if (d_queue != nullptr)
+			checkCudaErrors(cudaFree(d_queue));
+		if (d_queue_frontend != nullptr)
+			checkCudaErrors(cudaFree(d_queue_frontend));
+	}
+
+public:
+	void InitSearch(sint _num_of_points);
 
 };
 
