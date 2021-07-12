@@ -1061,9 +1061,42 @@ void Gpu::InitSearch(sint _num_of_points)
 
 
 // make one step to search down, and update to temp
-__global__ void cuOneStepSearchDown()
+__global__ void cuOneStepSearchDown(KdNode* d_kdNodes, 
+									NodeCoordIndices* d_index_down, sint* d_num_down,
+									NodeCoordIndices* d_index_temp, sint* d_num_temp,
+									const float* d_query, sint numDimensions,
+								)
 {
+	const int tid = blockIdx.x * blockDim.x + threadIdx.x;
 
+    if (tid < *d_num_down)
+    {
+		const KdNode& node_current = d_kdNodes[d_index_down[tid].node_index];
+
+		bool has_left_node  = (node_current.ltChild >= 0);
+		bool has_right_node = (node_current.gtChild >= 0);
+		if (has_left_node || has_right_node)
+		{
+			int place_index = atomicAdd(d_num_temp, 1); // put here
+			d_index_temp[place_index].coord_index = d_index_down[tid].coord_index;
+
+			if (has_left_node && has_right_node)
+			{
+				float val      = d_query[node_current.split_dim];
+				float val_node = d_coord[numDimensions * node_current.tuple + node_current.split_dim];
+				if (val < val_node) d_index_temp[place_index].node_index  = node_current.ltChild;
+				else d_index_temp[place_index].node_index = node_current.gtChild;
+			}
+			else if (has_left_node) d_index_temp[place_index].node_index = node_current.ltChild;
+			else d_index_temp[place_index].node_index = node_current.gtChild;
+		}
+	}
+}
+
+void OneStepSearchDown()
+{
+	sint zero_sint = 0;
+	checkCudaErrors(cudaMemcpyAsync(d_num_temp, &zero_sint, sizeof(sint), cudaMemcpyHostToDevice, stream));
 }
 
 
