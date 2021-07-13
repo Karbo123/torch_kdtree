@@ -46,9 +46,13 @@ using namespace std;
 
 #include "KdNode.h"
 
-struct CoordStartEndIndices { refIdx_t coord_index; refIdx_t start_index; refIdx_t end_index;};
+struct CoordStartEndIndices { refIdx_t coord_index; refIdx_t start_index; refIdx_t end_index; };
+struct CoordNodeIndices { refIdx_t coord_index; refIdx_t node_index; };
 struct StartEndIndices { refIdx_t start_index; refIdx_t end_index; };
 struct FrontEndIndices { refIdx_t front_index; refIdx_t end_index; };
+
+struct ResultNearest { refIdx_t best_index; float dist; } // shape == (num_of_points, )
+
 
 class Gpu {
 	// Gpu class constants;
@@ -100,6 +104,7 @@ private:
 	sint* d_num_up;
 	StartEndIndices* d_queue;
 	FrontEndIndices* d_queue_frontend;
+	void* d_result_buffer; // buffer for saving results @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ TODO malloc && free
 	sint num_of_points;
 
 public:

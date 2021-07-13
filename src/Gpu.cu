@@ -1076,6 +1076,15 @@ namespace queue_func // device functions for operating queue
 		return indices.front_index == -1;   
 	}
 
+	template<int queue_max> // only read the front value
+	__device__ __forceinline__ bool queue_front(StartEndIndices* d_queue, FrontEndIndices* d_queue_frontend, sint point_index,
+												StartEndIndices* item_out)
+	{
+		if (queue_is_empty(d_queue_frontend, point_index)) return false; // fail to read value
+		*item_out = d_queue[queue_max * point_index + d_queue_frontend[point_index].front_index];
+		return true;
+	}
+
 	template<int queue_max>
 	__device__ __forceinline__ bool queue_pushback(StartEndIndices* d_queue, FrontEndIndices* d_queue_frontend, sint point_index,
 												   StartEndIndices* item)
@@ -1090,13 +1099,30 @@ namespace queue_func // device functions for operating queue
 		return true;
 	}
 
-	template<int queue_max>
+	template<int queue_max> // also pop the value
 	__device__ __forceinline__ bool queue_popfront(StartEndIndices* d_queue, FrontEndIndices* d_queue_frontend, sint point_index,
 												   StartEndIndices* item_out)
 	{
 		if (queue_is_empty(d_queue_frontend, point_index)) return false; // fail to pop front
 		FrontEndIndices& indices = d_queue_frontend[point_index];
 		*item_out = d_queue[queue_max * point_index + indices.front_index]; // inplace
+		if (indices.front_index == indices.end_index)
+		{
+			indices.front_index = -1;
+			indices.end_index = -1;
+		} else
+		{
+			indices.front_index = (indices.front_index + 1) % queue_max;
+		}
+		
+		return true;
+	}
+
+	template<int queue_max> // only pop, not pop out value
+	__device__ __forceinline__ bool queue_popfront(StartEndIndices* d_queue, FrontEndIndices* d_queue_frontend, sint point_index)
+	{
+		if (queue_is_empty(d_queue_frontend, point_index)) return false; // fail to pop front
+		FrontEndIndices& indices = d_queue_frontend[point_index];
 		if (indices.front_index == indices.end_index)
 		{
 			indices.front_index = -1;
@@ -1194,9 +1220,146 @@ void Gpu::SearchDown(sint numDimensions, const float* d_query)
 	checkCudaErrors(cudaGetLastError());
 }
 
-// make one step to search up, and update to temp
-__global__ void cuOneStepSearchUp()
-{
 
+// make one step to search up, and update to temp
+template<int queue_max>
+__global__ void cuLoadFromQueue(StartEndIndices* d_queue, FrontEndIndices* d_queue_frontend, sint num_of_points,
+								CoordStartEndIndices* d_index_up, sint* d_num_up)
+{
+	const int tid = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (tid < num_of_points)
+    {
+		StartEndIndices item;
+	 	bool success = queue_popfront<queue_max>(d_queue, d_queue_frontend, tid, &item);
+		if (!success) return;
+
+		int place_index = atomicAdd(d_num_up, 1); // put here
+		CoordStartEndIndices cont;
+		cont.coord_index = tid;
+		cont.start_index = item.start_index;
+		cont.end_index   = item.end_index;
+		
+		d_index_up[place_index] = cont;
+	}
 }
 
+
+void Gpu::SearchUp(sint numDimensions, const float* d_query)
+{
+	const int total_num = num_of_points;
+	const int thread_num = std::min(numThreads, total_num);
+	const int block_num = int(std::ceil(total_num / float(thread_num)));
+	cuLoadFromQueue<<<block_num, thread_num, 0, stream>>>(d_queue, d_queue_frontend, num_of_points, d_index_up, d_num_up);
+	checkCudaErrors(cudaGetLastError());
+
+	while (true)
+	{
+		sint num_up = 0;
+		checkCudaErrors(cudaMemcpyAsync(&num_up, d_num_up, sizeof(sint), cudaMemcpyDeviceToHost, stream));
+		if (num_up == 0) break;
+		
+		
+	}
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////////////
+
+template<int dim>
+__device__ __forceinline__ float distance(const float* point_a, const float* point_b)
+{
+    float sum = 0;
+    #pragma unroll
+    for (sint i = 0; i < dim; ++i)
+        sum += POW2(point_a[i] - point_b[i]);
+    return sum;
+}
+
+
+template<>
+__device__ __forceinline__ float distance<3>(const float* point_a, const float* point_b)
+{
+    return POW2(point_a[0] - point_b[0]) + \
+           POW2(point_a[1] - point_b[1]) + \
+           POW2(point_a[2] - point_b[2]); 
+}
+
+
+template<int dim>
+__device__ __forceinline__ float distance_plane(const KdNode* d_kdNodes, const float* d_coord, 
+                                                const float* point, refIdx_t node)
+{
+    const KdNode& node_plane = d_kdNodes[node];
+    return POW2(point[node_plane.split_dim] - d_coord[dim * node_plane.tuple + node_plane.split_dim]);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////
+
+// make one step to search up, and update to temp
+template<int dim, int queue_max>
+__global__ void cuOneStepSearchUp_nearest(StartEndIndices* d_queue, FrontEndIndices* d_queue_frontend,
+                                          CoordStartEndIndices* d_index_up, sint* d_num_up,
+										  CoordStartEndIndices* d_index_temp, sint* d_num_temp,
+										  CoordStartEndIndices* d_index_down, sint* d_num_down,
+                                          const float* d_coord, const KdNode* d_kdNodes,
+                                          ResultNearest* d_result_buffer, // TODO NOTE @@@@@@@@@@@@@@@@@@@@@@@@@ dist init to +inf
+                                        )
+{
+	const int tid = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (tid < *d_num_up)
+    {
+		const CoordStartEndIndices& indices = d_index_up[tid];
+		sint coord_index = indices.coord_index;
+        const float* point = d_coord[dim * coord_index]
+
+        float dist = distance<dim>(point, d_coord + dim * d_kdNodes[indices.end_index].tuple);
+        ResultNearest& result = d_result_buffer[coord_index];
+        if (dist < result.dist)
+        {
+            result.dist = dist;
+            result.best_index = indices.end_index;
+        }
+
+        if (indices.end_index == indices.start_index) return;
+		
+		{
+			int place_index = atomicAdd(d_num_temp, 1); // put here
+			CoordStartEndIndices item;
+			item.coord_index = coord_index;
+			item.start_index = indices.start_index;
+			item.end_index   = d_kdNodes[indices.end_index].parent;
+			d_index_temp[place_index] = item;
+		}
+
+        refIdx_t node_bro = d_kdNodes[indices.end_index].brother;
+        if (node_bro >= 0)
+        {
+            dist_plane = distance_plane<dim>(point, d_kdNodes[indices.end_index].parent);
+            if (dist_plane < result.dist)
+            {
+				int place_index = atomicAdd(d_num_down, 1); // put here
+				CoordStartEndIndices item;
+				item.coord_index = coord_index;
+				item.start_index = node_bro;
+				item.end_index   = node_bro;
+				d_index_down[place_index] = item;
+            }
+        }
+	}
+}

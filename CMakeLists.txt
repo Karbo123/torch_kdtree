@@ -11,13 +11,15 @@ set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -w -Xptxas='-w' -Xcompiler='-fopenmp -
 file(GLOB COMMON_SOURCES 
           ${CMAKE_SOURCE_DIR}/src/buildKdTree.cu
           ${CMAKE_SOURCE_DIR}/src/Gpu.cu
+          ${CMAKE_SOURCE_DIR}/src/Gpu_searchup.cu
           ${CMAKE_SOURCE_DIR}/src/mergeSort.cu
           ${CMAKE_SOURCE_DIR}/src/removeDups.cu
+          ${CMAKE_SOURCE_DIR}/src/torch_kdtree.cu
     )
 
 ########################################################
 
-add_library(${PROJECT_NAME} SHARED ${COMMON_SOURCES} ${CMAKE_SOURCE_DIR}/src/torch_kdtree.cu)
+add_library(${PROJECT_NAME} SHARED ${COMMON_SOURCES})
 
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_14) 
 set_target_properties(${PROJECT_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
