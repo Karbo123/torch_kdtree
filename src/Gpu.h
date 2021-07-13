@@ -46,7 +46,7 @@ using namespace std;
 
 #include "KdNode.h"
 
-struct NodeCoordIndices { refIdx_t node_index; refIdx_t coord_index; };
+struct CoordStartEndIndices { refIdx_t coord_index; refIdx_t start_index; refIdx_t end_index;};
 struct StartEndIndices { refIdx_t start_index; refIdx_t end_index; };
 struct FrontEndIndices { refIdx_t front_index; refIdx_t end_index; };
 
@@ -54,7 +54,7 @@ class Gpu {
 	// Gpu class constants;
 	static const uint MAX_THREADS = 1024;
 	static const uint MAX_BLOCKS = 1024;
-	static const sint CUDA_QUEUE_MAX = 8; // the assumed max size of one queue
+	static const sint CUDA_QUEUE_MAX = 32; // the assumed max size of one queue
 
 public:
 	// These are the API methods used outside the class.  They hide any details about the GPUs from the main program.
@@ -92,9 +92,9 @@ private:
 
 private:
 	// for CUDA querying
-	NodeCoordIndices* d_index_temp;
-	NodeCoordIndices* d_index_down;
-	NodeCoordIndices* d_index_up;
+	CoordStartEndIndices* d_index_temp;
+	CoordStartEndIndices* d_index_down;
+	CoordStartEndIndices* d_index_up;
 	sint* d_num_temp;
 	sint* d_num_down;
 	sint* d_num_up;
@@ -346,9 +346,9 @@ private: // functions for query on CUDA
 		if (_num_of_points > num_of_points) // memory not enough
 		{
 			DestroyQueryMem();
-			checkCudaErrors(cudaMalloc((void**)&d_index_temp, sizeof(NodeCoordIndices) * _num_of_points));
-			checkCudaErrors(cudaMalloc((void**)&d_index_down, sizeof(NodeCoordIndices) * _num_of_points));
-			checkCudaErrors(cudaMalloc((void**)&d_index_up, sizeof(NodeCoordIndices) * _num_of_points));
+			checkCudaErrors(cudaMalloc((void**)&d_index_temp, sizeof(CoordStartEndIndices) * _num_of_points));
+			checkCudaErrors(cudaMalloc((void**)&d_index_down, sizeof(CoordStartEndIndices) * _num_of_points));
+			checkCudaErrors(cudaMalloc((void**)&d_index_up, sizeof(CoordStartEndIndices) * _num_of_points));
 			checkCudaErrors(cudaMalloc((void**)&d_num_temp, sizeof(sint)));
 			checkCudaErrors(cudaMalloc((void**)&d_num_down, sizeof(sint)));
 			checkCudaErrors(cudaMalloc((void**)&d_num_up, sizeof(sint)));
@@ -379,6 +379,9 @@ private: // functions for query on CUDA
 
 public:
 	void InitSearch(sint _num_of_points);
+
+private:
+	void SearchDown(sint numDimensions, const float* d_query);
 
 };
 
