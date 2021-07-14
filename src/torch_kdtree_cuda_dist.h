@@ -1,4 +1,5 @@
-
+#ifndef TORCH_KDTREE_CUDA_DIST_H_
+#define TORCH_KDTREE_CUDA_DIST_H_
 
 template<int dim>
 __device__ __forceinline__ float distance(const float* point_a, const float* point_b)
@@ -27,3 +28,6 @@ __device__ __forceinline__ float distance_plane(const KdNode* d_kdNodes, const f
     const KdNode& node_plane = d_kdNodes[node];
     return POW2(point[node_plane.split_dim] - d_coord[dim * node_plane.tuple + node_plane.split_dim]);
 }
+
+
+#endif

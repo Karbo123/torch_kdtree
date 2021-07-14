@@ -1,4 +1,5 @@
-
+#ifndef TORCH_KDTREE_CUDA_QUEUE_H_
+#define TORCH_KDTREE_CUDA_QUEUE_H_
 
 namespace queue_func // device functions for operating queue
 {
@@ -112,3 +113,6 @@ __global__ void cuEmptyNum(FrontEndIndices* d_queue_frontend, sint num_of_points
 		atomicAdd(empty_num_out, (int)is_empty);
 	}
 }
+
+
+#endif

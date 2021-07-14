@@ -1041,9 +1041,12 @@ __global__ void cuInitSearch(sint num_of_points,
     }
 }
 
-void Gpu::InitQueryMem(sint _num_of_points)
-{
-	if (_num_of_points > num_of_points) // memory not enough
+void Gpu::InitQueryMem(sint _num_of_points, SearchType search)
+{	
+	sint max_allocated_npoints, max_allocated_result_size;
+	std::tie(max_allocated_npoints, max_allocated_result_size) = max_allocated_size;
+
+	if (_num_of_points > max_allocated_npoints) // memory not enough
 	{
 		DestroyQueryMem();
 		checkCudaErrors(cudaMalloc((void**)&d_index_temp, sizeof(CoordStartEndIndices) * _num_of_points));
@@ -1056,6 +1059,21 @@ void Gpu::InitQueryMem(sint _num_of_points)
 		checkCudaErrors(cudaMalloc((void**)&d_queue_frontend, sizeof(FrontEndIndices) * _num_of_points));
 		checkCudaErrors(cudaMalloc((void**)&d_num_empty, sizeof(sint)));
 	}
+
+	sint requires_allocated_size = 0;
+	if (search == Nearest) requires_allocated_size = sizeof(ResultNearest) * _num_of_points;
+	else if (search == Knn) throw runtime_error("not implemented");
+	else if (search == Radius) throw runtime_error("not implemented");
+	if (requires_allocated_size > max_allocated_result_size)
+	{
+		if (d_result_buffer != nullptr) checkCudaErrors(cudaFree(d_result_buffer));
+		checkCudaErrors(cudaMalloc((void**)&d_result_buffer, requires_allocated_size));
+	}
+	
+	max_allocated_npoints = std::max(max_allocated_npoints, _num_of_points);
+	max_allocated_result_size = std::max(max_allocated_result_size, requires_allocated_size);
+	max_allocated_size = std::make_tuple(max_allocated_npoints, max_allocated_result_size);
+
 	num_of_points = _num_of_points; // num of querying points
 }
 
@@ -1081,9 +1099,10 @@ void Gpu::DestroyQueryMem()
 		checkCudaErrors(cudaFree(d_num_empty));
 }
 
-void Gpu::InitSearch(sint _num_of_points)
+
+void Gpu::InitSearch(sint _num_of_points, SearchType search)
 {
-	InitQueryMem(_num_of_points);
+	InitQueryMem(_num_of_points, search);
 
 	sint zero_sint = 0;
 	sint num_sint = num_of_points;
@@ -1095,12 +1114,6 @@ void Gpu::InitSearch(sint _num_of_points)
 	const int thread_num = std::min(numThreads, total_num);
 	const int block_num = int(std::ceil(total_num / float(thread_num)));
 	cuInitSearch<<<block_num, thread_num, 0, stream>>>(num_of_points, d_index_down, rootNode, d_queue_frontend);
-	checkCudaErrors(cudaGetLastError());
+	checkCudaErrors(cudaDeviceSynchronize()); checkCudaErrors(cudaGetLastError());
 }
-
-// copy codes here
-#include "Gpu_dist.h"
-#include "Gpu_queue.h"
-#include "Gpu_down.h"
-#include "Gpu_nearest.h"
 

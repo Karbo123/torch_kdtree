@@ -53,6 +53,8 @@ struct FrontEndIndices { refIdx_t front_index; refIdx_t end_index; };
 
 struct ResultNearest { refIdx_t best_index; float dist; }; // shape == (num_of_points, )
 
+enum SearchType {Nearest, Knn, Radius};
+
 #define POW2(x) ((x) * (x))
 
 
@@ -106,7 +108,8 @@ private:
 	sint* d_num_up;
 	StartEndIndices* d_queue;
 	FrontEndIndices* d_queue_frontend;
-	void* d_result_buffer; // buffer for saving results @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ TODO malloc && free
+	void* d_result_buffer; // buffer for saving results
+	tuple<int, int> max_allocated_size;
 	sint num_of_points; // num of query points
 	sint* d_num_empty;
 
@@ -150,6 +153,8 @@ public:
 		d_num_up   = nullptr;
 		d_queue = nullptr;
 		d_queue_frontend = nullptr;
+		d_result_buffer = nullptr;
+		max_allocated_size = std::make_tuple(0, 0);
 		num_of_points = 0;
 		d_num_empty = nullptr;
 
@@ -194,12 +199,17 @@ public:
 
 		// free memory for query
 		DestroyQueryMem();
+		if (d_result_buffer != nullptr)
+			checkCudaErrors(cudaFree(d_result_buffer));
 
 		checkCudaErrors(cudaEventDestroy(start));
 		checkCudaErrors(cudaEventDestroy(stop));
 		// checkCudaErrors(cudaStreamDestroy(stream));
 		num = 0;
 	}
+
+	sint getDevice() { return devID; }
+
 
 private:
 	// These are the per GPU methods.  They implemented in Gpu.cu
@@ -353,13 +363,13 @@ public: // functions for query on CUDA
 	template<int dim> void Search_nearest(const float* d_query, int64_t* index_out, const int _num_of_points);
 
 private:
-	void InitQueryMem(sint _num_of_points);
+	void InitQueryMem(sint _num_of_points, SearchType search);
 	void DestroyQueryMem();
-	void InitSearch(sint _num_of_points);
+	void InitSearch(sint _num_of_points, SearchType search);
 	void SearchDown(const float* d_query);
 	template<int dim> void SearchUp_nearest(const float* d_query);
 
-	
+
 };
 
 

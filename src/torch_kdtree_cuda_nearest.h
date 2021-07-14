@@ -1,3 +1,5 @@
+#ifndef TORCH_KDTREE_CUDA_NEAREST_H_
+#define TORCH_KDTREE_CUDA_NEAREST_H_
 
 // make one step to search up, and update to temp
 template<int dim>
@@ -66,7 +68,7 @@ void Gpu::SearchUp_nearest(const float* d_query)
 	const int thread_num = std::min(numThreads, total_num);
 	const int block_num = int(std::ceil(total_num / float(thread_num)));
 	cuLoadFromQueue <CUDA_QUEUE_MAX> <<<block_num, thread_num, 0, stream>>> (d_queue, d_queue_frontend, num_of_points, d_index_up, d_num_up);
-	checkCudaErrors(cudaGetLastError());
+	checkCudaErrors(cudaDeviceSynchronize()); checkCudaErrors(cudaGetLastError());
 
 	while (true)
 	{
@@ -86,7 +88,7 @@ void Gpu::SearchUp_nearest(const float* d_query)
 																	           d_query, d_coord, d_kdNodes,
 																	           (ResultNearest*) d_result_buffer
 																	        );
-		checkCudaErrors(cudaGetLastError());
+		checkCudaErrors(cudaDeviceSynchronize()); checkCudaErrors(cudaGetLastError());
         
         std::swap(d_index_up, d_index_temp);
 		std::swap(d_num_up, d_num_temp);
@@ -117,30 +119,36 @@ __global__ void InitResult_nearest(ResultNearest* result, const int num_of_point
 }
 
 
+
 template<int dim>
 void Gpu::Search_nearest(const float* d_query, int64_t* index_out, const int _num_of_points)
 {
-	InitSearch(_num_of_points);
+	InitSearch(_num_of_points, Nearest);
 
 	// init result
 	const int total_num = num_of_points;
 	const int thread_num = std::min(numThreads, total_num);
 	const int block_num = int(std::ceil(total_num / float(thread_num)));
 	InitResult_nearest<<<block_num, thread_num, 0, stream>>>((ResultNearest*) d_result_buffer, num_of_points);
-	checkCudaErrors(cudaGetLastError());
+	checkCudaErrors(cudaDeviceSynchronize()); checkCudaErrors(cudaGetLastError());
 
-	int num_empty = 0;
-	int num_down = 0;
+	
 	while (true)
 	{
 		SearchDown(d_query);
 		SearchUp_nearest<dim>(d_query);
-		
+
+		int num_empty = 0, num_down = 0;
+		checkCudaErrors(cudaMemcpyAsync(d_num_empty, &num_empty, sizeof(sint), cudaMemcpyHostToDevice, stream));
 		cuEmptyNum<<<block_num, thread_num, 0, stream>>>(d_queue_frontend, num_of_points, d_num_empty);
-		checkCudaErrors(cudaGetLastError());
+		checkCudaErrors(cudaDeviceSynchronize()); checkCudaErrors(cudaGetLastError());
 
 		checkCudaErrors(cudaMemcpyAsync(&num_empty, d_num_empty, sizeof(sint), cudaMemcpyDeviceToHost, stream));
 		checkCudaErrors(cudaMemcpyAsync(&num_down, d_num_down, sizeof(sint), cudaMemcpyDeviceToHost, stream));
+
+		cout << "[DEBUG] num_empty = " << num_empty << endl;
+		cout << "[DEBUG] num_down = " << num_down << endl;
+
 		if (num_empty == num_of_points // queue becomes empty
 			&& num_down == 0 // no need to search down
 		) break; // all done
@@ -148,6 +156,8 @@ void Gpu::Search_nearest(const float* d_query, int64_t* index_out, const int _nu
 
 	// copy result index
 	CopyResult_nearest<<<block_num, thread_num, 0, stream>>>((ResultNearest*) d_result_buffer, num_of_points, index_out);
-	checkCudaErrors(cudaGetLastError());
+	checkCudaErrors(cudaDeviceSynchronize()); checkCudaErrors(cudaGetLastError());
 }
 
+
+#endif

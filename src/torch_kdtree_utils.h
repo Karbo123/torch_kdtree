@@ -14,6 +14,15 @@
 #include <stack>
 #include <tuple>
 
+
+// copy codes here
+#include "Gpu.h"
+#include "torch_kdtree_cuda_dist.h"
+#include "torch_kdtree_cuda_queue.h"
+#include "torch_kdtree_cuda_down.h"
+#include "torch_kdtree_cuda_nearest.h"
+
+
 namespace py = pybind11;
 
 ////////////////////////////////////////////////////////////////

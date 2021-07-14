@@ -60,6 +60,7 @@ void TorchKDTree::_search_nearest(const float* point, int64_t* out_)
 
 
 
+
 template<int N>
 struct WorkerNearest
 {
@@ -67,6 +68,15 @@ struct WorkerNearest
     {
         #pragma omp parallel for
         for (sint i = 0; i < numQuery; ++i) tree_ptr->_search_nearest<N>(points_ptr + i * numDimensions, raw_ptr + i);
+    }
+};
+
+template<int N>
+struct WorkerCUDANearest
+{
+    static void work(TorchKDTree* tree_ptr, float* points_ptr, int64_t* raw_ptr, int numQuery)
+    {
+        tree_ptr->device->Search_nearest<N>(points_ptr, raw_ptr, numQuery);
     }
 };
 
@@ -82,7 +92,13 @@ torch::Tensor TorchKDTree::search_nearest(torch::Tensor points)
 
     if (is_cuda)
     {
-        throw runtime_error("CUDA-KDTree cannot do searching");
+        indices_tensor = torch::zeros({numQuery}, torch::TensorOptions()
+                                                    .dtype(torch::kInt64)
+                                                    .device(torch::kCUDA, device->getDevice()));
+        int64_t* raw_ptr = indices_tensor.data_ptr<int64_t>();
+        
+        Dispatcher<WorkerCUDANearest>::dispatch(numDimensions,
+                                                this, points_ptr, raw_ptr, numQuery);
     }
     else
     {
