@@ -40,7 +40,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <helper_cuda.h>
-
+#include <float.h> // FLT_MAX 
 
 using namespace std;
 
@@ -51,7 +51,9 @@ struct CoordNodeIndices { refIdx_t coord_index; refIdx_t node_index; };
 struct StartEndIndices { refIdx_t start_index; refIdx_t end_index; };
 struct FrontEndIndices { refIdx_t front_index; refIdx_t end_index; };
 
-struct ResultNearest { refIdx_t best_index; float dist; } // shape == (num_of_points, )
+struct ResultNearest { refIdx_t best_index; float dist; }; // shape == (num_of_points, )
+
+#define POW2(x) ((x) * (x))
 
 
 class Gpu {
@@ -105,7 +107,8 @@ private:
 	StartEndIndices* d_queue;
 	FrontEndIndices* d_queue_frontend;
 	void* d_result_buffer; // buffer for saving results @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ TODO malloc && free
-	sint num_of_points;
+	sint num_of_points; // num of query points
+	sint* d_num_empty;
 
 public:
 	// Constructor
@@ -148,6 +151,7 @@ public:
 		d_queue = nullptr;
 		d_queue_frontend = nullptr;
 		num_of_points = 0;
+		d_num_empty = nullptr;
 
 		checkCudaErrors(cudaEventCreate(&syncEvent));
 		checkCudaErrors(cudaEventCreate(&start));
@@ -345,49 +349,17 @@ public:
 
 //////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////
-private: // functions for query on CUDA
-	void InitQueryMem(sint _num_of_points)
-	{
-		if (_num_of_points > num_of_points) // memory not enough
-		{
-			DestroyQueryMem();
-			checkCudaErrors(cudaMalloc((void**)&d_index_temp, sizeof(CoordStartEndIndices) * _num_of_points));
-			checkCudaErrors(cudaMalloc((void**)&d_index_down, sizeof(CoordStartEndIndices) * _num_of_points));
-			checkCudaErrors(cudaMalloc((void**)&d_index_up, sizeof(CoordStartEndIndices) * _num_of_points));
-			checkCudaErrors(cudaMalloc((void**)&d_num_temp, sizeof(sint)));
-			checkCudaErrors(cudaMalloc((void**)&d_num_down, sizeof(sint)));
-			checkCudaErrors(cudaMalloc((void**)&d_num_up, sizeof(sint)));
-			checkCudaErrors(cudaMalloc((void**)&d_queue, sizeof(StartEndIndices) * _num_of_points * CUDA_QUEUE_MAX));
-			checkCudaErrors(cudaMalloc((void**)&d_queue_frontend, sizeof(FrontEndIndices) * _num_of_points));
-		}
-		num_of_points = _num_of_points; // num of querying points
-	}
-	void DestroyQueryMem()
-	{
-		if (d_index_temp != nullptr)
-			checkCudaErrors(cudaFree(d_index_temp));
-		if (d_index_down != nullptr)
-			checkCudaErrors(cudaFree(d_index_down));
-		if (d_index_up != nullptr)
-			checkCudaErrors(cudaFree(d_index_up));
-		if (d_num_temp != nullptr)
-			checkCudaErrors(cudaFree(d_num_temp));
-		if (d_num_down != nullptr)
-			checkCudaErrors(cudaFree(d_num_down));
-		if (d_num_up != nullptr)
-			checkCudaErrors(cudaFree(d_num_up));
-		if (d_queue != nullptr)
-			checkCudaErrors(cudaFree(d_queue));
-		if (d_queue_frontend != nullptr)
-			checkCudaErrors(cudaFree(d_queue_frontend));
-	}
-
-public:
-	void InitSearch(sint _num_of_points);
+public: // functions for query on CUDA
+	template<int dim> void Search_nearest(const float* d_query, int64_t* index_out, const int _num_of_points);
 
 private:
-	void SearchDown(sint numDimensions, const float* d_query);
+	void InitQueryMem(sint _num_of_points);
+	void DestroyQueryMem();
+	void InitSearch(sint _num_of_points);
+	void SearchDown(const float* d_query);
+	template<int dim> void SearchUp_nearest(const float* d_query);
 
+	
 };
 
 

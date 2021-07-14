@@ -1024,8 +1024,6 @@ Gpu* Gpu::gpuSetup(int threads, int blocks, int dim, int gpuid, cudaStream_t tor
 
 /////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////
-// https://blog.csdn.net/FreeeLinux/article/details/52075018
-
 
 __global__ void cuInitSearch(sint num_of_points, 
                              CoordStartEndIndices* d_index_down,  refIdx_t root_index, 
@@ -1041,6 +1039,46 @@ __global__ void cuInitSearch(sint num_of_points,
         d_queue_frontend[tid].front_index = -1;
         d_queue_frontend[tid].end_index = -1;
     }
+}
+
+void Gpu::InitQueryMem(sint _num_of_points)
+{
+	if (_num_of_points > num_of_points) // memory not enough
+	{
+		DestroyQueryMem();
+		checkCudaErrors(cudaMalloc((void**)&d_index_temp, sizeof(CoordStartEndIndices) * _num_of_points));
+		checkCudaErrors(cudaMalloc((void**)&d_index_down, sizeof(CoordStartEndIndices) * _num_of_points));
+		checkCudaErrors(cudaMalloc((void**)&d_index_up, sizeof(CoordStartEndIndices) * _num_of_points));
+		checkCudaErrors(cudaMalloc((void**)&d_num_temp, sizeof(sint)));
+		checkCudaErrors(cudaMalloc((void**)&d_num_down, sizeof(sint)));
+		checkCudaErrors(cudaMalloc((void**)&d_num_up, sizeof(sint)));
+		checkCudaErrors(cudaMalloc((void**)&d_queue, sizeof(StartEndIndices) * _num_of_points * CUDA_QUEUE_MAX));
+		checkCudaErrors(cudaMalloc((void**)&d_queue_frontend, sizeof(FrontEndIndices) * _num_of_points));
+		checkCudaErrors(cudaMalloc((void**)&d_num_empty, sizeof(sint)));
+	}
+	num_of_points = _num_of_points; // num of querying points
+}
+
+void Gpu::DestroyQueryMem()
+{
+	if (d_index_temp != nullptr)
+		checkCudaErrors(cudaFree(d_index_temp));
+	if (d_index_down != nullptr)
+		checkCudaErrors(cudaFree(d_index_down));
+	if (d_index_up != nullptr)
+		checkCudaErrors(cudaFree(d_index_up));
+	if (d_num_temp != nullptr)
+		checkCudaErrors(cudaFree(d_num_temp));
+	if (d_num_down != nullptr)
+		checkCudaErrors(cudaFree(d_num_down));
+	if (d_num_up != nullptr)
+		checkCudaErrors(cudaFree(d_num_up));
+	if (d_queue != nullptr)
+		checkCudaErrors(cudaFree(d_queue));
+	if (d_queue_frontend != nullptr)
+		checkCudaErrors(cudaFree(d_queue_frontend));
+	if (d_num_empty != nullptr)
+		checkCudaErrors(cudaFree(d_num_empty));
 }
 
 void Gpu::InitSearch(sint _num_of_points)
@@ -1060,306 +1098,9 @@ void Gpu::InitSearch(sint _num_of_points)
 	checkCudaErrors(cudaGetLastError());
 }
 
+// copy codes here
+#include "Gpu_dist.h"
+#include "Gpu_queue.h"
+#include "Gpu_down.h"
+#include "Gpu_nearest.h"
 
-namespace queue_func // device functions for operating queue
-{
-	template<int queue_max>
-	__device__ __forceinline__ bool queue_is_full(FrontEndIndices* d_queue_frontend, sint point_index)
-	{
-		const FrontEndIndices& indices = d_queue_frontend[point_index];
-		return (indices.end_index + 1) % queue_max == indices.front_index;			   
-	}
-
-	__device__ __forceinline__ bool queue_is_empty(FrontEndIndices* d_queue_frontend, sint point_index)
-	{
-		const FrontEndIndices& indices = d_queue_frontend[point_index];
-		return indices.front_index == -1;   
-	}
-
-	template<int queue_max> // only read the front value
-	__device__ __forceinline__ bool queue_front(StartEndIndices* d_queue, FrontEndIndices* d_queue_frontend, sint point_index,
-												StartEndIndices* item_out)
-	{
-		if (queue_is_empty(d_queue_frontend, point_index)) return false; // fail to read value
-		*item_out = d_queue[queue_max * point_index + d_queue_frontend[point_index].front_index];
-		return true;
-	}
-
-	template<int queue_max>
-	__device__ __forceinline__ bool queue_pushback(StartEndIndices* d_queue, FrontEndIndices* d_queue_frontend, sint point_index,
-												   StartEndIndices* item)
-	{
-		if (queue_is_full<queue_max>(d_queue_frontend, point_index)) return false; // fail to push back
-		FrontEndIndices& indices = d_queue_frontend[point_index];
-		sint storage_index = 0;
-		if (indices.front_index != -1 && indices.end_index != queue_max - 1) storage_index == (++indices.end_index);
-		else indices.end_index = 0;
-		d_queue[queue_max * point_index + storage_index] = *item;
-		if (indices.front_index == -1) indices.front_index == 0;
-		return true;
-	}
-
-	template<int queue_max> // also pop the value
-	__device__ __forceinline__ bool queue_popfront(StartEndIndices* d_queue, FrontEndIndices* d_queue_frontend, sint point_index,
-												   StartEndIndices* item_out)
-	{
-		if (queue_is_empty(d_queue_frontend, point_index)) return false; // fail to pop front
-		FrontEndIndices& indices = d_queue_frontend[point_index];
-		*item_out = d_queue[queue_max * point_index + indices.front_index]; // inplace
-		if (indices.front_index == indices.end_index)
-		{
-			indices.front_index = -1;
-			indices.end_index = -1;
-		} else
-		{
-			indices.front_index = (indices.front_index + 1) % queue_max;
-		}
-		
-		return true;
-	}
-
-	template<int queue_max> // only pop, not pop out value
-	__device__ __forceinline__ bool queue_popfront(StartEndIndices* d_queue, FrontEndIndices* d_queue_frontend, sint point_index)
-	{
-		if (queue_is_empty(d_queue_frontend, point_index)) return false; // fail to pop front
-		FrontEndIndices& indices = d_queue_frontend[point_index];
-		if (indices.front_index == indices.end_index)
-		{
-			indices.front_index = -1;
-			indices.end_index = -1;
-		} else
-		{
-			indices.front_index = (indices.front_index + 1) % queue_max;
-		}
-		
-		return true;
-	}
-};
-
-
-template<int queue_max>
-__global__ void queue_batch_pushback(StartEndIndices* d_queue, FrontEndIndices* d_queue_frontend,
-									 CoordStartEndIndices* d_index_down, sint* d_num_down)
-{
-	const int tid = blockIdx.x * blockDim.x + threadIdx.x;
-
-	if (tid < *d_num_down)
-	{
-		StartEndIndices item;
-		refIdx_t coord_index = d_index_down[tid].coord_index;
-		item.start_index     = d_index_down[tid].start_index;
-		item.end_index       = d_index_down[tid].end_index;
-		bool success = queue_func::queue_pushback<queue_max>(d_queue, d_queue_frontend, coord_index, &item);
-		if (!success) printf("queue is full, cannot pushback anymore!");
-	}
-}
-
-
-
-// make one step to search down, and update to temp
-__global__ void cuOneStepSearchDown(KdNode* d_kdNodes, 
-									CoordStartEndIndices* d_index_down, sint* d_num_down,
-									CoordStartEndIndices* d_index_temp, sint* d_num_temp,
-									const float* d_query, const float* d_coord, sint numDimensions
-								)
-{
-	const int tid = blockIdx.x * blockDim.x + threadIdx.x;
-
-    if (tid < *d_num_down)
-    {
-		const KdNode& node_current = d_kdNodes[d_index_down[tid].end_index];
-
-		bool has_left_node  = (node_current.ltChild >= 0);
-		bool has_right_node = (node_current.gtChild >= 0);
-		if (has_left_node || has_right_node)
-		{
-			int place_index = atomicAdd(d_num_temp, 1); // put here
-			d_index_temp[place_index].coord_index = d_index_down[tid].coord_index;
-			d_index_temp[place_index].start_index = d_index_down[tid].start_index;
-
-			if (has_left_node && has_right_node)
-			{
-				float val      = d_query[node_current.split_dim];
-				float val_node = d_coord[numDimensions * node_current.tuple + node_current.split_dim];
-				if (val < val_node) d_index_temp[place_index].end_index  = node_current.ltChild;
-				else d_index_temp[place_index].end_index = node_current.gtChild;
-			}
-			else if (has_left_node) d_index_temp[place_index].end_index = node_current.ltChild;
-			else d_index_temp[place_index].end_index = node_current.gtChild;
-		}
-	}
-}
-
-void Gpu::SearchDown(sint numDimensions, const float* d_query)
-{
-	while (true) // all reach the leaf
-	{
-		sint num_to_down = 0;
-		checkCudaErrors(cudaMemcpyAsync(d_num_temp, &num_to_down, sizeof(sint), cudaMemcpyHostToDevice, stream));
-		checkCudaErrors(cudaMemcpyAsync(&num_to_down, d_index_down, sizeof(sint), cudaMemcpyDeviceToHost, stream));
-		
-		if (num_to_down == 0) break;
-
-		const int total_num = num_to_down;
-		const int thread_num = std::min(numThreads, total_num);
-		const int block_num = int(std::ceil(total_num / float(thread_num)));
-		cuOneStepSearchDown<<<block_num, thread_num, 0, stream>>>(d_kdNodes, d_index_down, d_num_down, d_index_temp, d_num_temp, d_query, d_coord, numDimensions);
-		checkCudaErrors(cudaGetLastError());
-
-		std::swap(d_index_down, d_index_temp);
-		std::swap(d_num_down, d_num_temp);
-	}
-
-	// push in queue
-	sint num_to_down = 0;
-	checkCudaErrors(cudaMemcpyAsync(&num_to_down, d_index_down, sizeof(sint), cudaMemcpyDeviceToHost, stream));
-	const int total_num = num_to_down;
-	const int thread_num = std::min(numThreads, total_num);
-	const int block_num = int(std::ceil(total_num / float(thread_num)));
-	queue_batch_pushback<CUDA_QUEUE_MAX> <<<block_num, thread_num, 0, stream>>> (d_queue, d_queue_frontend, d_index_down, d_num_down);
-	checkCudaErrors(cudaGetLastError());
-}
-
-
-// make one step to search up, and update to temp
-template<int queue_max>
-__global__ void cuLoadFromQueue(StartEndIndices* d_queue, FrontEndIndices* d_queue_frontend, sint num_of_points,
-								CoordStartEndIndices* d_index_up, sint* d_num_up)
-{
-	const int tid = blockIdx.x * blockDim.x + threadIdx.x;
-
-    if (tid < num_of_points)
-    {
-		StartEndIndices item;
-	 	bool success = queue_popfront<queue_max>(d_queue, d_queue_frontend, tid, &item);
-		if (!success) return;
-
-		int place_index = atomicAdd(d_num_up, 1); // put here
-		CoordStartEndIndices cont;
-		cont.coord_index = tid;
-		cont.start_index = item.start_index;
-		cont.end_index   = item.end_index;
-		
-		d_index_up[place_index] = cont;
-	}
-}
-
-
-void Gpu::SearchUp(sint numDimensions, const float* d_query)
-{
-	const int total_num = num_of_points;
-	const int thread_num = std::min(numThreads, total_num);
-	const int block_num = int(std::ceil(total_num / float(thread_num)));
-	cuLoadFromQueue<<<block_num, thread_num, 0, stream>>>(d_queue, d_queue_frontend, num_of_points, d_index_up, d_num_up);
-	checkCudaErrors(cudaGetLastError());
-
-	while (true)
-	{
-		sint num_up = 0;
-		checkCudaErrors(cudaMemcpyAsync(&num_up, d_num_up, sizeof(sint), cudaMemcpyDeviceToHost, stream));
-		if (num_up == 0) break;
-		
-		
-	}
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////////////
-
-template<int dim>
-__device__ __forceinline__ float distance(const float* point_a, const float* point_b)
-{
-    float sum = 0;
-    #pragma unroll
-    for (sint i = 0; i < dim; ++i)
-        sum += POW2(point_a[i] - point_b[i]);
-    return sum;
-}
-
-
-template<>
-__device__ __forceinline__ float distance<3>(const float* point_a, const float* point_b)
-{
-    return POW2(point_a[0] - point_b[0]) + \
-           POW2(point_a[1] - point_b[1]) + \
-           POW2(point_a[2] - point_b[2]); 
-}
-
-
-template<int dim>
-__device__ __forceinline__ float distance_plane(const KdNode* d_kdNodes, const float* d_coord, 
-                                                const float* point, refIdx_t node)
-{
-    const KdNode& node_plane = d_kdNodes[node];
-    return POW2(point[node_plane.split_dim] - d_coord[dim * node_plane.tuple + node_plane.split_dim]);
-}
-
-////////////////////////////////////////////////////////////////////////////////////////
-
-// make one step to search up, and update to temp
-template<int dim, int queue_max>
-__global__ void cuOneStepSearchUp_nearest(StartEndIndices* d_queue, FrontEndIndices* d_queue_frontend,
-                                          CoordStartEndIndices* d_index_up, sint* d_num_up,
-										  CoordStartEndIndices* d_index_temp, sint* d_num_temp,
-										  CoordStartEndIndices* d_index_down, sint* d_num_down,
-                                          const float* d_coord, const KdNode* d_kdNodes,
-                                          ResultNearest* d_result_buffer, // TODO NOTE @@@@@@@@@@@@@@@@@@@@@@@@@ dist init to +inf
-                                        )
-{
-	const int tid = blockIdx.x * blockDim.x + threadIdx.x;
-
-    if (tid < *d_num_up)
-    {
-		const CoordStartEndIndices& indices = d_index_up[tid];
-		sint coord_index = indices.coord_index;
-        const float* point = d_coord[dim * coord_index]
-
-        float dist = distance<dim>(point, d_coord + dim * d_kdNodes[indices.end_index].tuple);
-        ResultNearest& result = d_result_buffer[coord_index];
-        if (dist < result.dist)
-        {
-            result.dist = dist;
-            result.best_index = indices.end_index;
-        }
-
-        if (indices.end_index == indices.start_index) return;
-		
-		{
-			int place_index = atomicAdd(d_num_temp, 1); // put here
-			CoordStartEndIndices item;
-			item.coord_index = coord_index;
-			item.start_index = indices.start_index;
-			item.end_index   = d_kdNodes[indices.end_index].parent;
-			d_index_temp[place_index] = item;
-		}
-
-        refIdx_t node_bro = d_kdNodes[indices.end_index].brother;
-        if (node_bro >= 0)
-        {
-            dist_plane = distance_plane<dim>(point, d_kdNodes[indices.end_index].parent);
-            if (dist_plane < result.dist)
-            {
-				int place_index = atomicAdd(d_num_down, 1); // put here
-				CoordStartEndIndices item;
-				item.coord_index = coord_index;
-				item.start_index = node_bro;
-				item.end_index   = node_bro;
-				d_index_down[place_index] = item;
-            }
-        }
-	}
-}

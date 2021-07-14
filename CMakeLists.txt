@@ -11,7 +11,6 @@ set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -w -Xptxas='-w' -Xcompiler='-fopenmp -
 file(GLOB COMMON_SOURCES 
           ${CMAKE_SOURCE_DIR}/src/buildKdTree.cu
           ${CMAKE_SOURCE_DIR}/src/Gpu.cu
-          ${CMAKE_SOURCE_DIR}/src/Gpu_searchup.cu
           ${CMAKE_SOURCE_DIR}/src/mergeSort.cu
           ${CMAKE_SOURCE_DIR}/src/removeDups.cu
           ${CMAKE_SOURCE_DIR}/src/torch_kdtree.cu
