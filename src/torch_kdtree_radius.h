@@ -27,7 +27,7 @@ void TorchKDTree::_search_radius(const float* point, float radius2, std::vector<
         while (true)
         {
             // update if current node is better
-            dist = distance<dim>(point, coordinates + dim * kdNodes[node_end].tuple);
+            dist = distance<dim>(point, coordinates + numDimensions * kdNodes[node_end].tuple);
             if (dist < radius2) // exists a smaller value
             {
                 out_.push_back(kdNodes[node_end].tuple);
@@ -57,61 +57,6 @@ void TorchKDTree::_search_radius(const float* point, float radius2, std::vector<
     std::sort(out_.begin(), out_.end());
 }
 
-
-
-// search for a single point
-template<>
-void TorchKDTree::_search_radius<0>(const float* point, float radius2, std::vector<sint>& out_)
-{
-    using start_end = std::tuple<refIdx_t, refIdx_t>;
-
-    float dist       = std::numeric_limits<float>::max();
-    float dist_plane = std::numeric_limits<float>::max();
-    refIdx_t node_bro;
-
-    // BFS
-    std::queue<start_end> buffer;
-    refIdx_t node_start, node_end;
-    buffer.emplace(start_end(root, _search(point, root)));
-
-    while (!buffer.empty())
-    {
-        std::tie(node_start, node_end) = buffer.front();
-        buffer.pop();
-
-        // back trace until to the starting node
-        while (true)
-        {
-            // update if current node is better
-            dist = distance<0>(point, coordinates + numDimensions * kdNodes[node_end].tuple);
-            if (dist < radius2) // exists a smaller value
-            {
-                out_.push_back(kdNodes[node_end].tuple);
-            }
-
-            if (node_end != node_start)
-            {
-                node_bro = kdNodes[node_end].brother;
-                if (node_bro >= 0)
-                {
-                    // if intersect with plane, search another branch
-                    dist_plane = distance_plane<0>(point, kdNodes[node_end].parent);
-                    if (dist_plane < radius2)
-                    {
-                        buffer.emplace(start_end(node_bro, _search(point, node_bro)));
-                    }
-                }
-
-                // back trace
-                node_end = kdNodes[node_end].parent;
-            }
-            else break;
-        }
-    }
-
-    // sort
-    std::sort(out_.begin(), out_.end());
-}
 
 
 template<int N>

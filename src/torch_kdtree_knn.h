@@ -43,7 +43,7 @@ void TorchKDTree::_search_knn(const float* point, sint k, int64_t* out_)
         while (true)
         {
             // update if current node is better
-            dist = distance<dim>(point, coordinates + dim * kdNodes[node_end].tuple);
+            dist = distance<dim>(point, coordinates + numDimensions * kdNodes[node_end].tuple);
             if (dist < std::get<0>(heap_best.top())) // exists a smaller value
             {
                 heap_best.pop(); // remove the largest elem from heap
@@ -78,70 +78,6 @@ void TorchKDTree::_search_knn(const float* point, sint k, int64_t* out_)
     }
 }
 
-
-// search for a single point
-template<>
-void TorchKDTree::_search_knn<0>(const float* point, sint k, int64_t* out_)
-{
-    using start_end = std::tuple<refIdx_t, refIdx_t>;
-    using dist_node = std::tuple<float, refIdx_t>;
-
-    float dist       = std::numeric_limits<float>::max();
-    float dist_plane = std::numeric_limits<float>::max();
-    refIdx_t node_bro;
-
-    // create a queue
-    const auto _init_cont = std::vector<dist_node>(k, dist_node(std::numeric_limits<float>::max(), -1));
-    auto heap_best = std::priority_queue<dist_node, std::vector<dist_node>, cmp_dist_node_less> (_init_cont.begin(), _init_cont.end());
-    
-    // BFS
-    std::queue<start_end> buffer;
-    refIdx_t node_start, node_end;
-    buffer.emplace(start_end(root, _search(point, root)));
-
-    while (!buffer.empty())
-    {
-        std::tie(node_start, node_end) = buffer.front();
-        buffer.pop();
-
-        // back trace until to the starting node
-        while (true)
-        {
-            // update if current node is better
-            dist = distance<0>(point, coordinates + numDimensions * kdNodes[node_end].tuple);
-            if (dist < std::get<0>(heap_best.top())) // exists a smaller value
-            {
-                heap_best.pop(); // remove the largest elem from heap
-                heap_best.emplace(dist_node(dist, node_end)); // record the best
-            }
-
-            if (node_end != node_start)
-            {
-                node_bro = kdNodes[node_end].brother;
-                if (node_bro >= 0)
-                {
-                    // if intersect with plane, search another branch
-                    dist_plane = distance_plane<0>(point, kdNodes[node_end].parent);
-                    if (dist_plane < std::get<0>(heap_best.top()))
-                    {
-                        buffer.emplace(start_end(node_bro, _search(point, node_bro)));
-                    }
-                }
-
-                // back trace
-                node_end = kdNodes[node_end].parent;
-            }
-            else break;
-        }
-    }
-
-    // copy results
-    for (sint i = 0; i < k; ++i)
-    {
-        out_[k - 1 - i] = int64_t(kdNodes[std::get<1>(heap_best.top())].tuple); // out_[0] is the nearest, out_[k - 1] is the farthest
-        heap_best.pop();
-    }
-}
 
 
 template<int N>
