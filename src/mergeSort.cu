@@ -719,8 +719,8 @@ void Gpu::initMergeSortSmpl(uint N)
 		checkCudaErrors(cudaMalloc((void **)&d_RanksB,  maxSampleCount * sizeof(uint)));
 		checkCudaErrors(cudaMalloc((void **)&d_LimitsA, maxSampleCount * sizeof(uint)));
 		checkCudaErrors(cudaMalloc((void **)&d_LimitsB, maxSampleCount * sizeof(uint)));
-		checkCudaErrors(cudaMalloc((void **) &d_iRef, N*sizeof(refIdx_t)));
-		checkCudaErrors(cudaMalloc((void **) &d_iVal, N*sizeof(KdCoord)));
+		checkCudaErrors(cudaMalloc((void **)&d_iRef, N*sizeof(refIdx_t)));
+		checkCudaErrors(cudaMalloc((void **)&d_iVal, N*sizeof(KdCoord)));
 	}
 }
 
@@ -732,8 +732,8 @@ void Gpu::closeMergeSortSmpl()
 		syncGPU();
 		checkCudaErrors(cudaFree(d_RanksA));
 		checkCudaErrors(cudaFree(d_RanksB));
-		checkCudaErrors(cudaFree(d_LimitsB));
 		checkCudaErrors(cudaFree(d_LimitsA));
+		checkCudaErrors(cudaFree(d_LimitsB));
 		checkCudaErrors(cudaFree(d_iRef));
 		checkCudaErrors(cudaFree(d_iVal));
 		if (d_mpi != NULL) checkCudaErrors(cudaFree(d_mpi));

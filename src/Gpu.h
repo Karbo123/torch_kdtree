@@ -169,18 +169,18 @@ public:
 	~Gpu(){
 		setDevice();
 		if (d_references != NULL) {
-			for (sint i = 0; i < dimen+1; i++)
-				checkCudaErrors(cudaFree(d_references[i]));
+			for (sint i = 0; i < dimen+2; i++)
+				if (d_references[i] != NULL) checkCudaErrors(cudaFree(d_references[i]));
 		}
 		free(d_references);
 		if (d_values != NULL) {
-			for (sint i = 0; i < dimen+1; i++)
-				checkCudaErrors(cudaFree(d_values[i]));
+			for (sint i = 0; i < dimen+2; i++)
+				if (d_values[i] != NULL) checkCudaErrors(cudaFree(d_values[i]));
 		}
 		free(d_values);
 		if (d_coord != NULL)
 			checkCudaErrors(cudaFree(d_coord));
-		if (d_coord != NULL)
+		if (d_kdNodes != NULL)
 			checkCudaErrors(cudaFree(d_kdNodes));
 		if (d_end != NULL)
 			checkCudaErrors(cudaFree(d_end));
@@ -206,6 +206,8 @@ public:
 		checkCudaErrors(cudaEventDestroy(stop));
 		// checkCudaErrors(cudaStreamDestroy(stream));
 		num = 0;
+
+		// checkCudaErrors(cudaDeviceReset()); // only for CUDA memory leak checking, check with: CUDA_MEMCHECK_PATCH_MODULE=1 cuda-memcheck --leak-check full python ../test/test_memleak.py
 	}
 
 	sint getDevice() { return devID; }

@@ -378,5 +378,6 @@ uint Gpu::removeDups(KdCoord coords[], KdCoord val[], refIdx_t ref[], KdCoord va
 	uint removeDupsCount;
 	// checkCudaErrors(cudaMemcpyFromSymbolAsync(&removeDupsCount, d_removeDupsCount, sizeof(d_removeDupsCount), 0, cudaMemcpyDeviceToHost, stream));
 	checkCudaErrors(cudaMemcpyAsync(&removeDupsCount, d_removeDupsCount, sizeof(uint), cudaMemcpyDeviceToHost, stream));
+	checkCudaErrors(cudaFree(d_segLengths));
 	return removeDupsCount;
 }

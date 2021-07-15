@@ -13,15 +13,16 @@ if __name__ == "__main__":
     data = torch.randn([NUM, 3], device="cuda")
     t0 = time()
     tree = torch_kdtree.torchBuildCUDAKDTree(data)
-    print(f"(python) time for building kdtree, and moving to cpu = {time() - t0}")
+    print(f"(python) time for building kdtree = {time() - t0}")
 
     ########################################
     query = torch.randn([NUM, 3], device="cuda")
     t0 = time()
     index = tree.search_nearest(query)
-    print(f"(python) time for querying on cpu using multithreads = {time() - t0}")
+    print(f"(python) time for querying on cuda = {time() - t0}")
     index = index.cpu()
-    
+    print(f"[PYTHON DEBUG] index = {index}")
+
     ########################################
 
     data = data.cpu()

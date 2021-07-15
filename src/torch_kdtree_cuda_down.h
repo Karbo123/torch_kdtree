@@ -1,24 +1,6 @@
 #ifndef TORCH_KDTREE_CUDA_DOWN_H_
 #define TORCH_KDTREE_CUDA_DOWN_H_
 
-// template<int queue_max>
-// __global__ void queue_batch_pushback(StartEndIndices* d_queue, FrontEndIndices* d_queue_frontend,
-// 									 CoordStartEndIndices* d_index_down, sint* d_num_down)
-// {
-// 	const int tid = blockIdx.x * blockDim.x + threadIdx.x;
-
-// 	if (tid < *d_num_down)
-// 	{
-// 		StartEndIndices item;
-// 		refIdx_t coord_index = d_index_down[tid].coord_index;
-// 		item.start_index     = d_index_down[tid].start_index;
-// 		item.end_index       = d_index_down[tid].end_index;
-// 		bool success = queue_func::queue_pushback<queue_max>(d_queue, d_queue_frontend, coord_index, &item);
-// 		if (!success) printf("queue is full, cannot pushback anymore!");
-// 	}
-// }
-
-
 
 // make one step to search down, and update to temp
 template<int queue_max>
@@ -90,15 +72,6 @@ void Gpu::SearchDown(const float* d_query)
 		std::swap(d_index_down, d_index_temp);
 		std::swap(d_num_down, d_num_temp);
 	}
-
-	// push in queue
-	// sint num_to_down = 0;
-	// checkCudaErrors(cudaMemcpyAsync(&num_to_down, d_num_down, sizeof(sint), cudaMemcpyDeviceToHost, stream));
-	// const int total_num = num_to_down;
-	// const int thread_num = std::min(numThreads, total_num);
-	// const int block_num = int(std::ceil(total_num / float(thread_num)));
-	// queue_batch_pushback<CUDA_QUEUE_MAX> <<<block_num, thread_num, 0, stream>>> (d_queue, d_queue_frontend, d_index_down, d_num_down);
-	// checkCudaErrors(cudaGetLastError());
 }
 
 

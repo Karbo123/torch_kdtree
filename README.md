@@ -48,7 +48,7 @@ please check the testing script in `test/performance/` folder.
 - [x] remove all global variables such as `d_verifyKdTreeError`
 - [ ] CUDA query
 - [ ] support any num of points
-- [ ] do not cudaMalloc frequently
+- [ ] host memory leak testing
 
 other ref: [Traversal on CUDA](https://developer.nvidia.com/blog/thinking-parallel-part-ii-tree-traversal-gpu/)
 

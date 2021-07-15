@@ -62,7 +62,8 @@ void Gpu::SearchUp_nearest(const float* d_query)
 	sint num_zero = 0;
 	checkCudaErrors(cudaMemcpyAsync(d_num_down, &num_zero, sizeof(sint), cudaMemcpyHostToDevice, stream));
 	checkCudaErrors(cudaMemcpyAsync(d_num_up, &num_zero, sizeof(sint), cudaMemcpyHostToDevice, stream));
-
+	checkCudaErrors(cudaDeviceSynchronize()); checkCudaErrors(cudaGetLastError());
+	
 	// load from queue
 	const int total_num = num_of_points;
 	const int thread_num = std::min(numThreads, total_num);
@@ -73,9 +74,10 @@ void Gpu::SearchUp_nearest(const float* d_query)
 	while (true)
 	{
 		sint num_up = 0;
-		checkCudaErrors(cudaMemcpyAsync(d_num_temp, &num_up, sizeof(sint), cudaMemcpyHostToDevice, stream));
+		checkCudaErrors(cudaMemcpyAsync(d_num_temp, &num_zero, sizeof(sint), cudaMemcpyHostToDevice, stream));
 		checkCudaErrors(cudaMemcpyAsync(&num_up, d_num_up, sizeof(sint), cudaMemcpyDeviceToHost, stream));
 		
+		cout << "[DEBUG] num_up = " << num_up << endl;
 		if (num_up == 0) break;
 
 		const int total_num = num_up;
