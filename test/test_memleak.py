@@ -1,7 +1,11 @@
 """ testing whether cuda memory leaks
 """
-import os, sys; sys.path.append(os.path.join(os.path.dirname(__file__), "../build"))
-import torch, torch_kdtree
+import torch
+try:
+    import torch_kdtree # if built with setuptools
+except:
+    import os, sys; sys.path.append(os.path.join(os.path.dirname(__file__), "../build")) # if built with cmake
+    import torch_kdtree
 import pynvml # https://pypi.org/project/pynvml/
 
 pynvml.nvmlInit()

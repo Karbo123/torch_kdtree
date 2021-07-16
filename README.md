@@ -16,12 +16,14 @@ Functions currently implemented:
 **NOTE: this repo is still under heavy development**
 
 
-# Build
+# build
 
 build environment: (other environment should be okey)
 - torch == 1.8.0
 - nvcc == 10.2
 
+there are generally two ways to build the library.
+1. build with cmake:
 ```
 mkdir build && cd build
 
@@ -31,9 +33,15 @@ cmake .. \
 -DCUDA_TOOLKIT_ROOT_DIR=$CU102_CUDA_TOOLKIT_DIR
 ```
 
+2. build with setuptools:
+```
+TORCH_CUDA_ARCH_LIST="6.0+PTX" python setup.py develop
+```
+
+
 # usage
 
-please check the testing script in `test/performance/` folder.
+please check the testing script in `test/perf/` folder.
 
 
 # benchmarking
@@ -46,10 +54,9 @@ please check the testing script in `test/performance/` folder.
 
 - [x] multiple trees memory conflict
 - [x] remove all global variables such as `d_verifyKdTreeError`
+- [ ] template for other cases N > 32
 - [ ] CUDA query
 - [ ] cuda-tree do not own host memory; cpu-tree do not own cuda memory
 - [ ] host memory leak testing
 - [ ] support any num of points
-
-other ref: [Traversal on CUDA](https://developer.nvidia.com/blog/thinking-parallel-part-ii-tree-traversal-gpu/)
 

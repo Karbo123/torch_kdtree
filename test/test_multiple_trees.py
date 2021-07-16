@@ -1,6 +1,9 @@
 import torch
-import os, sys; sys.path.append(os.path.join(os.path.dirname(__file__), "../build"))
-import torch_kdtree
+try:
+    import torch_kdtree # if built with setuptools
+except:
+    import os, sys; sys.path.append(os.path.join(os.path.dirname(__file__), "../build")) # if built with cmake
+    import torch_kdtree
 
 if __name__ == "__main__":
     NUM = int(2**18)

@@ -4,3 +4,6 @@ build
 *.so
 Makefile
 __temp*
+*.log
+*.egg*
+*.sh
