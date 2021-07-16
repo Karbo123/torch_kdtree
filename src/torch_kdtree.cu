@@ -29,7 +29,7 @@ TorchKDTree torchBuildCUDAKDTree(torch::Tensor data_float)
     
     // copy coordinates to host // TODO do not copy for speed
     float* float_ptr = data_float.data_ptr<float>();
-    gpuErrchk(cudaMemcpy(tree.coordinates, float_ptr, numPoints * numDimensions * sizeof(float), cudaMemcpyDeviceToHost));
+    checkCudaErrors(cudaMemcpy(tree.coordinates, float_ptr, numPoints * numDimensions * sizeof(float), cudaMemcpyDeviceToHost));
     
     // initialize environment
     std::stringstream _str_stream;

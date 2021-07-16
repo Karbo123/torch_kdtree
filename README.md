@@ -47,8 +47,9 @@ please check the testing script in `test/performance/` folder.
 - [x] multiple trees memory conflict
 - [x] remove all global variables such as `d_verifyKdTreeError`
 - [ ] CUDA query
-- [ ] support any num of points
+- [ ] cuda-tree do not own host memory; cpu-tree do not own cuda memory
 - [ ] host memory leak testing
+- [ ] support any num of points
 
 other ref: [Traversal on CUDA](https://developer.nvidia.com/blog/thinking-parallel-part-ii-tree-traversal-gpu/)
 

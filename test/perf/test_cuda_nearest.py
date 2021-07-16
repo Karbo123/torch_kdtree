@@ -36,3 +36,8 @@ if __name__ == "__main__":
     wrong_loc = torch.where(index != index_gt)[0]
     print(f"(python) there are {len(wrong_loc)} mismatches in total")
 
+import ipdb; ipdb.set_trace()
+tree.cpu()
+index2 = tree.search_nearest(query)
+print()
+

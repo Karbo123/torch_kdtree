@@ -62,7 +62,7 @@ class Gpu {
 	// Gpu class constants;
 	static const uint MAX_THREADS = 1024;
 	static const uint MAX_BLOCKS = 1024;
-	static const sint CUDA_QUEUE_MAX = 32; // the assumed max size of one queue
+	static const sint CUDA_QUEUE_MAX = 512; // the assumed max size of one queue TODO NOTE @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 public:
 	// These are the API methods used outside the class.  They hide any details about the GPUs from the main program.
@@ -369,7 +369,7 @@ private:
 	void DestroyQueryMem();
 	void InitSearch(sint _num_of_points, SearchType search);
 	void SearchDown(const float* d_query);
-	template<int dim> void SearchUp_nearest(const float* d_query);
+	template<int dim> void OneStepSearchUp_nearest(const float* d_query);
 
 
 };

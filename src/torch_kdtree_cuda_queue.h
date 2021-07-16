@@ -32,10 +32,10 @@ namespace queue_func // device functions for operating queue
 		if (queue_is_full<queue_max>(d_queue_frontend, point_index)) return false; // fail to push back
 		FrontEndIndices& indices = d_queue_frontend[point_index];
 		sint storage_index = 0;
-		if (indices.front_index != -1 && indices.end_index != queue_max - 1) storage_index == (++indices.end_index);
+		if (indices.front_index != -1 && indices.end_index != queue_max - 1) storage_index = (++indices.end_index);
 		else indices.end_index = 0;
 		d_queue[queue_max * point_index + storage_index] = *item;
-		if (indices.front_index == -1) indices.front_index == 0;
+		if (indices.front_index == -1) indices.front_index = 0;
 		return true;
 	}
 

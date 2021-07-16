@@ -31,25 +31,6 @@ namespace py = pybind11;
 #define CHECK_FLOAT32(x) TORCH_CHECK(x.dtype()==torch::kFloat32, #x " must be float32")
 #define CHECK_CUDA(x) TORCH_CHECK(x.is_cuda(), #x " must be a CUDA tensor")
 
-////////////////////////////////////////////////////////////////
-
-namespace CUDA_ERR
-{
-inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort = true)
-{
-    if (code != cudaSuccess)
-    {
-        fprintf(stderr, "GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
-        if (abort)
-            exit(code);
-    }
-}
-};
-#define gpuErrchk(ans)                                  \
-    {                                                   \
-        CUDA_ERR::gpuAssert((ans), __FILE__, __LINE__); \
-    }
-
 #define POW2(x) ((x) * (x))
 
 ////////////////////////////////////////////////////////////////

@@ -55,57 +55,53 @@ __global__ void cuOneStepSearchUp_nearest(StartEndIndices* d_queue, FrontEndIndi
 
 
 template<int dim>
-void Gpu::SearchUp_nearest(const float* d_query)
+void Gpu::OneStepSearchUp_nearest(const float* d_query)
 {
-	const int numDimensions = dimen;
-
 	sint num_zero = 0;
 	checkCudaErrors(cudaMemcpyAsync(d_num_down, &num_zero, sizeof(sint), cudaMemcpyHostToDevice, stream));
-	checkCudaErrors(cudaMemcpyAsync(d_num_up, &num_zero, sizeof(sint), cudaMemcpyHostToDevice, stream));
-	checkCudaErrors(cudaDeviceSynchronize()); checkCudaErrors(cudaGetLastError());
-	
-	// load from queue
-	const int total_num = num_of_points;
-	const int thread_num = std::min(numThreads, total_num);
-	const int block_num = int(std::ceil(total_num / float(thread_num)));
-	cuLoadFromQueue <CUDA_QUEUE_MAX> <<<block_num, thread_num, 0, stream>>> (d_queue, d_queue_frontend, num_of_points, d_index_up, d_num_up);
-	checkCudaErrors(cudaDeviceSynchronize()); checkCudaErrors(cudaGetLastError());
 
-	while (true)
+	sint num_up = 0;
+	checkCudaErrors(cudaMemcpyAsync(&num_up, d_num_up, sizeof(sint), cudaMemcpyDeviceToHost, stream));
+	checkCudaErrors(cudaGetLastError());
+	if (num_up == 0) // empty, load from queue
 	{
-		sint num_up = 0;
-		checkCudaErrors(cudaMemcpyAsync(d_num_temp, &num_zero, sizeof(sint), cudaMemcpyHostToDevice, stream));
-		checkCudaErrors(cudaMemcpyAsync(&num_up, d_num_up, sizeof(sint), cudaMemcpyDeviceToHost, stream));
-		
-		cout << "[DEBUG] num_up = " << num_up << endl;
-		if (num_up == 0) break;
-
-		const int total_num = num_up;
+		const int total_num = num_of_points;
 		const int thread_num = std::min(numThreads, total_num);
 		const int block_num = int(std::ceil(total_num / float(thread_num)));
-		cuOneStepSearchUp_nearest<dim> <<<block_num, thread_num, 0, stream>>> (d_queue, d_queue_frontend,
-																	           d_index_up, d_num_up,
-																	           d_index_temp, d_num_temp,
-																	           d_index_down, d_num_down,
-																	           d_query, d_coord, d_kdNodes,
-																	           (ResultNearest*) d_result_buffer
-																	        );
-		checkCudaErrors(cudaDeviceSynchronize()); checkCudaErrors(cudaGetLastError());
-        
-        std::swap(d_index_up, d_index_temp);
-		std::swap(d_num_up, d_num_temp);
+		cuLoadFromQueue <CUDA_QUEUE_MAX> <<<block_num, thread_num, 0, stream>>> (d_queue, d_queue_frontend, num_of_points, d_index_up, d_num_up);
+		checkCudaErrors(cudaGetLastError());
+		
+		checkCudaErrors(cudaMemcpyAsync(&num_up, d_num_up, sizeof(sint), cudaMemcpyDeviceToHost, stream));
+		checkCudaErrors(cudaGetLastError());
 	}
+	
+	cout << "[DEBUG] num_up = " << num_up << endl;
+	// make one step to search up
+	checkCudaErrors(cudaMemcpyAsync(d_num_temp, &num_zero, sizeof(sint), cudaMemcpyHostToDevice, stream));
+	const int total_num = num_up;
+	const int thread_num = std::min(numThreads, total_num);
+	const int block_num = int(std::ceil(total_num / float(thread_num)));
+	cuOneStepSearchUp_nearest<dim> <<<block_num, thread_num, 0, stream>>> (d_queue, d_queue_frontend,
+																			d_index_up, d_num_up,
+																			d_index_temp, d_num_temp,
+																			d_index_down, d_num_down,
+																			d_query, d_coord, d_kdNodes,
+																			(ResultNearest*) d_result_buffer
+																		);
+	checkCudaErrors(cudaGetLastError());
+	std::swap(d_index_up, d_index_temp);
+	std::swap(d_num_up, d_num_temp);
 }
 
 
 
-__global__ void CopyResult_nearest(const ResultNearest* result, const int num_of_points, int64_t* index_out)
+__global__ void CopyResult_nearest(const ResultNearest* result, const KdNode* d_kdNodes, const int num_of_points, int64_t* index_out)
 {
 	const int tid = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if (tid < num_of_points)
 	{
-		index_out[tid] = int64_t(result[tid].best_index);
+		index_out[tid] = int64_t(d_kdNodes[result[tid].best_index].tuple); // it should be index of point, not kdnode
 	}
 }
 
@@ -132,33 +128,41 @@ void Gpu::Search_nearest(const float* d_query, int64_t* index_out, const int _nu
 	const int thread_num = std::min(numThreads, total_num);
 	const int block_num = int(std::ceil(total_num / float(thread_num)));
 	InitResult_nearest<<<block_num, thread_num, 0, stream>>>((ResultNearest*) d_result_buffer, num_of_points);
-	checkCudaErrors(cudaDeviceSynchronize()); checkCudaErrors(cudaGetLastError());
+	checkCudaErrors(cudaGetLastError());
 
-	
 	while (true)
 	{
 		SearchDown(d_query);
-		SearchUp_nearest<dim>(d_query);
+		OneStepSearchUp_nearest<dim>(d_query);
 
-		int num_empty = 0, num_down = 0;
+		// empty num
+		int num_empty = 0;
 		checkCudaErrors(cudaMemcpyAsync(d_num_empty, &num_empty, sizeof(sint), cudaMemcpyHostToDevice, stream));
 		cuEmptyNum<<<block_num, thread_num, 0, stream>>>(d_queue_frontend, num_of_points, d_num_empty);
-		checkCudaErrors(cudaDeviceSynchronize()); checkCudaErrors(cudaGetLastError());
-
+		checkCudaErrors(cudaGetLastError());
 		checkCudaErrors(cudaMemcpyAsync(&num_empty, d_num_empty, sizeof(sint), cudaMemcpyDeviceToHost, stream));
+		
+		// down num
+		int num_down = 0;
 		checkCudaErrors(cudaMemcpyAsync(&num_down, d_num_down, sizeof(sint), cudaMemcpyDeviceToHost, stream));
 
-		cout << "[DEBUG] num_empty = " << num_empty << endl;
+		cout << "[DEBUG] num_queue_empty = " << num_empty << endl;
 		cout << "[DEBUG] num_down = " << num_down << endl;
 
 		if (num_empty == num_of_points // queue becomes empty
 			&& num_down == 0 // no need to search down
-		) break; // all done
+		)
+		{
+			int num_up = 0;
+			checkCudaErrors(cudaMemcpyAsync(&num_up, d_num_up, sizeof(sint), cudaMemcpyDeviceToHost, stream));
+			checkCudaErrors(cudaGetLastError());
+			if (num_up == 0) break; // all done
+		}
 	}
 
 	// copy result index
-	CopyResult_nearest<<<block_num, thread_num, 0, stream>>>((ResultNearest*) d_result_buffer, num_of_points, index_out);
-	checkCudaErrors(cudaDeviceSynchronize()); checkCudaErrors(cudaGetLastError());
+	CopyResult_nearest<<<block_num, thread_num, 0, stream>>>((ResultNearest*) d_result_buffer, d_kdNodes, num_of_points, index_out);
+	checkCudaErrors(cudaGetLastError());
 }
 
 

@@ -1114,6 +1114,6 @@ void Gpu::InitSearch(sint _num_of_points, SearchType search)
 	const int thread_num = std::min(numThreads, total_num);
 	const int block_num = int(std::ceil(total_num / float(thread_num)));
 	cuInitSearch<<<block_num, thread_num, 0, stream>>>(num_of_points, d_index_down, rootNode, d_queue_frontend);
-	checkCudaErrors(cudaDeviceSynchronize()); checkCudaErrors(cudaGetLastError());
+	checkCudaErrors(cudaGetLastError());
 }
 
