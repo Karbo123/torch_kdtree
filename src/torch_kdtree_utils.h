@@ -13,14 +13,8 @@
 #include <stdexcept>
 #include <stack>
 #include <tuple>
-
-
-// copy codes here
-#include "Gpu.h"
-#include "torch_kdtree_cuda_dist.h"
-#include "torch_kdtree_cuda_queue.h"
-#include "torch_kdtree_cuda_down.h"
-#include "torch_kdtree_cuda_nearest.h"
+#include <stdlib.h>
+#include <chrono>
 
 
 namespace py = pybind11;
@@ -73,5 +67,32 @@ struct Dispatcher
         _DispatcherImpl<F, 1, Nmax + 1>::dispatch(n, args...);
     }
 };
+
+////////////////////////////////////////////////////////////////
+
+class Timer
+{
+public:
+    Timer() : beg_(clock_::now()) {}
+    void reset() { beg_ = clock_::now(); }
+    double elapsed() const { 
+        return std::chrono::duration_cast<second_>
+            (clock_::now() - beg_).count(); }
+
+private:
+    typedef std::chrono::high_resolution_clock clock_;
+    typedef std::chrono::duration<double, std::ratio<1> > second_;
+    std::chrono::time_point<clock_> beg_;
+};
+
+////////////////////////////////////////////////////////////////
+
+// copy codes here
+#include "Gpu.h"
+#include "torch_kdtree_cuda_dist.h"
+#include "torch_kdtree_cuda_queue.h"
+#include "torch_kdtree_cuda_down.h"
+#include "torch_kdtree_cuda_nearest.h"
+
 
 #endif

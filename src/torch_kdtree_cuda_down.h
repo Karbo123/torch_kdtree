@@ -42,7 +42,6 @@ __global__ void cuOneStepSearchDown(StartEndIndices* d_queue, FrontEndIndices* d
 			refIdx_t coord_index = d_index_down[tid].coord_index;
 			item.start_index     = d_index_down[tid].start_index;
 			item.end_index       = d_index_down[tid].end_index;
-			// if (coord_index < 50) printf("[PushBackQueue] coord_index = %d, start_index = %d, end_index = %d\n", coord_index, item.start_index, item.end_index); // TODO NOTE this is correct
 			bool success = queue_func::queue_pushback<queue_max>(d_queue, d_queue_frontend, coord_index, &item);
 			if (!success) printf("queue is full, cannot pushback anymore!");
 		}

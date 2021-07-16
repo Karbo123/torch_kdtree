@@ -5,7 +5,7 @@
 // search for a single point
 // see: https://zhuanlan.zhihu.com/p/45346117
 template<int dim>
-void TorchKDTree::_search_nearest(const float* point, int64_t* out_, int ________________________index)
+void TorchKDTree::_search_nearest(const float* point, int64_t* out_)
 {
     using start_end = std::tuple<refIdx_t, refIdx_t>;
 
@@ -18,10 +18,6 @@ void TorchKDTree::_search_nearest(const float* point, int64_t* out_, int _______
     std::queue<start_end> buffer;
     refIdx_t node_start, node_end;
     buffer.emplace(start_end(root, _search(point, root)));
-
-    // TODO NOTE @@@@@@@@@@@@@@@@@@
-    if (________________________index < 50) cout << "i = " << ________________________index << ", start_index = " << std::get<0>(buffer.back()) << ", end_index = " << std::get<1>(buffer.back()) << endl;
-    
 
     while (!buffer.empty())
     {
@@ -71,7 +67,7 @@ struct WorkerNearest
     static void work(TorchKDTree* tree_ptr, float* points_ptr, int64_t* raw_ptr, int numDimensions, int numQuery)
     {
         #pragma omp parallel for
-        for (sint i = 0; i < numQuery; ++i) tree_ptr->_search_nearest<N>(points_ptr + i * numDimensions, raw_ptr + i, i);
+        for (sint i = 0; i < numQuery; ++i) tree_ptr->_search_nearest<N>(points_ptr + i * numDimensions, raw_ptr + i);
     }
 };
 

@@ -39,7 +39,7 @@ public:
     ///////////////////////////////////////////////////////////////////
     // nearest search
     template<int dim>
-    void _search_nearest(const float* point, int64_t* out_, int ________________________index);
+    void _search_nearest(const float* point, int64_t* out_);
 
     torch::Tensor search_nearest(torch::Tensor points);
 

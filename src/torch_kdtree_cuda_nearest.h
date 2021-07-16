@@ -62,7 +62,6 @@ void Gpu::OneStepSearchUp_nearest(const float* d_query)
 
 	sint num_up = 0;
 	checkCudaErrors(cudaMemcpyAsync(&num_up, d_num_up, sizeof(sint), cudaMemcpyDeviceToHost, stream));
-	checkCudaErrors(cudaGetLastError());
 	if (num_up == 0) // empty, load from queue
 	{
 		const int total_num = num_of_points;
@@ -70,12 +69,10 @@ void Gpu::OneStepSearchUp_nearest(const float* d_query)
 		const int block_num = int(std::ceil(total_num / float(thread_num)));
 		cuLoadFromQueue <CUDA_QUEUE_MAX> <<<block_num, thread_num, 0, stream>>> (d_queue, d_queue_frontend, num_of_points, d_index_up, d_num_up);
 		checkCudaErrors(cudaGetLastError());
-		
+		// load num to host
 		checkCudaErrors(cudaMemcpyAsync(&num_up, d_num_up, sizeof(sint), cudaMemcpyDeviceToHost, stream));
-		checkCudaErrors(cudaGetLastError());
 	}
 	
-	cout << "[DEBUG] num_up = " << num_up << endl;
 	// make one step to search up
 	checkCudaErrors(cudaMemcpyAsync(d_num_temp, &num_zero, sizeof(sint), cudaMemcpyHostToDevice, stream));
 	const int total_num = num_up;
@@ -130,6 +127,9 @@ void Gpu::Search_nearest(const float* d_query, int64_t* index_out, const int _nu
 	InitResult_nearest<<<block_num, thread_num, 0, stream>>>((ResultNearest*) d_result_buffer, num_of_points);
 	checkCudaErrors(cudaGetLastError());
 
+	int ____COUNTER____ = 0;
+	Timer timer;
+	Timer timer_sum;
 	while (true)
 	{
 		SearchDown(d_query);
@@ -146,18 +146,25 @@ void Gpu::Search_nearest(const float* d_query, int64_t* index_out, const int _nu
 		int num_down = 0;
 		checkCudaErrors(cudaMemcpyAsync(&num_down, d_num_down, sizeof(sint), cudaMemcpyDeviceToHost, stream));
 
-		cout << "[DEBUG] num_queue_empty = " << num_empty << endl;
+		// num up
+		int num_up = 0;
+		checkCudaErrors(cudaMemcpyAsync(&num_up, d_num_up, sizeof(sint), cudaMemcpyDeviceToHost, stream));
+
+		checkCudaErrors(cudaDeviceSynchronize());
+		double time_sum_ms = timer_sum.elapsed() * 1000;
+		double time_ms = timer.elapsed() * 1000; timer.reset();
+		cout << "____COUNTER____ = " << ____COUNTER____ << endl;
+		cout << "[DEBUG] num_empty = " << num_empty << "; left = " << num_of_points - num_empty << endl;
 		cout << "[DEBUG] num_down = " << num_down << endl;
+		cout << "[DEBUG] num_up = " << num_up << endl;
+		cout << "[DEBUG] time = " << time_ms << "ms" << endl;
+		cout << "[DEBUG] time_sum = " << time_sum_ms << "ms" << endl;
+		____COUNTER____++;
 
 		if (num_empty == num_of_points // queue becomes empty
 			&& num_down == 0 // no need to search down
-		)
-		{
-			int num_up = 0;
-			checkCudaErrors(cudaMemcpyAsync(&num_up, d_num_up, sizeof(sint), cudaMemcpyDeviceToHost, stream));
-			checkCudaErrors(cudaGetLastError());
-			if (num_up == 0) break; // all done
-		}
+			&& num_up == 0 // no need to search up
+		) break; // all done
 	}
 
 	// copy result index
