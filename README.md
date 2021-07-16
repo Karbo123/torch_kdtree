@@ -54,6 +54,7 @@ please check the testing script in `test/perf/` folder.
 
 - [x] multiple trees memory conflict
 - [x] remove all global variables such as `d_verifyKdTreeError`
+- [ ] do not use queue; search down and update dist
 - [ ] template for other cases N > 32
 - [ ] CUDA query
 - [ ] cuda-tree do not own host memory; cpu-tree do not own cuda memory
