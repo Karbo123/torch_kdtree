@@ -13,33 +13,34 @@ void TorchKDTree::_search_radius(const float* point, float radius2, std::vector<
     float dist_plane = std::numeric_limits<float>::max();
     refIdx_t node_bro;
 
-    // BFS
-    std::queue<start_end> buffer;
+    std::stack<start_end> buffer;
     refIdx_t node_start, node_end;
     buffer.emplace(start_end(root, _search(point, root)));
 
     while (!buffer.empty())
     {
-        std::tie(node_start, node_end) = buffer.front();
+        std::tie(node_start, node_end) = buffer.top();
         buffer.pop();
 
         // back trace until to the starting node
         while (true)
         {
+            const KdNode& node_current = kdNodes[node_end];
+
             // update if current node is better
-            dist = distance<dim>(point, coordinates + numDimensions * kdNodes[node_end].tuple);
+            dist = distance<dim>(point, coordinates + numDimensions * node_current.tuple);
             if (dist < radius2) // exists a smaller value
             {
-                out_.push_back(kdNodes[node_end].tuple);
+                out_.push_back(node_current.tuple);
             }
 
             if (node_end != node_start)
             {
-                node_bro = kdNodes[node_end].brother;
+                node_bro = node_current.brother;
                 if (node_bro >= 0)
                 {
                     // if intersect with plane, search another branch
-                    dist_plane = distance_plane<dim>(point, kdNodes[node_end].parent);
+                    dist_plane = distance_plane<dim>(point, node_current.parent);
                     if (dist_plane < radius2)
                     {
                         buffer.emplace(start_end(node_bro, _search(point, node_bro)));
@@ -47,7 +48,7 @@ void TorchKDTree::_search_radius(const float* point, float radius2, std::vector<
                 }
 
                 // back trace
-                node_end = kdNodes[node_end].parent;
+                node_end = node_current.parent;
             }
             else break;
         }

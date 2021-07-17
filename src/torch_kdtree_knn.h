@@ -29,21 +29,22 @@ void TorchKDTree::_search_knn(const float* point, sint k, int64_t* out_)
     const auto _init_cont = std::vector<dist_node>(k, dist_node(std::numeric_limits<float>::max(), -1));
     auto heap_best = std::priority_queue<dist_node, std::vector<dist_node>, cmp_dist_node_less> (_init_cont.begin(), _init_cont.end());
     
-    // BFS
-    std::queue<start_end> buffer;
+    std::stack<start_end> buffer;
     refIdx_t node_start, node_end;
     buffer.emplace(start_end(root, _search(point, root)));
 
     while (!buffer.empty())
     {
-        std::tie(node_start, node_end) = buffer.front();
+        std::tie(node_start, node_end) = buffer.top();
         buffer.pop();
 
         // back trace until to the starting node
         while (true)
         {
+            const KdNode& node_current = kdNodes[node_end];
+
             // update if current node is better
-            dist = distance<dim>(point, coordinates + numDimensions * kdNodes[node_end].tuple);
+            dist = distance<dim>(point, coordinates + numDimensions * node_current.tuple);
             if (dist < std::get<0>(heap_best.top())) // exists a smaller value
             {
                 heap_best.pop(); // remove the largest elem from heap
@@ -52,11 +53,11 @@ void TorchKDTree::_search_knn(const float* point, sint k, int64_t* out_)
 
             if (node_end != node_start)
             {
-                node_bro = kdNodes[node_end].brother;
+                node_bro = node_current.brother;
                 if (node_bro >= 0)
                 {
                     // if intersect with plane, search another branch
-                    dist_plane = distance_plane<dim>(point, kdNodes[node_end].parent);
+                    dist_plane = distance_plane<dim>(point, node_current.parent);
                     if (dist_plane < std::get<0>(heap_best.top()))
                     {
                         buffer.emplace(start_end(node_bro, _search(point, node_bro)));
@@ -64,7 +65,7 @@ void TorchKDTree::_search_knn(const float* point, sint k, int64_t* out_)
                 }
 
                 // back trace
-                node_end = kdNodes[node_end].parent;
+                node_end = node_current.parent;
             }
             else break;
         }
