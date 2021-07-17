@@ -67,4 +67,5 @@ This work is largely based on an existing repo: [KdTreeGPU](https://github.com/j
 All I did was improve it a bit, write codes for tree traversal, and expose pytorch interfaces to make it easier to use.
 
 Developer: Jiabao Lei
+
 Email: eejblei@mail.scut.edu.cn
