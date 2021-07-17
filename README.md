@@ -1,14 +1,12 @@
 # A CUDA implementation of KDTree in PyTorch
 
-> Adapted from: [KdTreeGPU](https://github.com/johnarobinson77/KdTreeGPU)
-
-This repo is specially useful if the point cloud is very large (>100,000 points).
+This is specially useful if the point cloud is very large (>100,000 points).
 
 Currently KD-Tree is built on CUDA, and the query is done on CPU.
 We are now working on making a new function of querying point on CUDA device, which should be faster. 
 
-Functions currently implemented:
-- nearest search (CPU)
+Query functions currently implemented:
+- nearest search (CPU; CUDA for experimental testing)
 - knn search (CPU)
 - radius search (CPU)
 
@@ -63,3 +61,10 @@ please check the testing script in `test/perf/` folder.
 - [ ] host memory leak testing
 - [ ] support any num of points
 
+# About
+
+This work is largely based on an existing repo: [KdTreeGPU](https://github.com/johnarobinson77/KdTreeGPU).
+All I did was improve it a bit, write codes for tree traversal, and expose pytorch interfaces to make it easier to use.
+
+Developer: Jiabao Lei
+Email: eejblei@mail.scut.edu.cn
