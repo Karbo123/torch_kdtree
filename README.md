@@ -18,7 +18,7 @@ Functions currently implemented:
 
 # build
 
-build environment: (other environment should be okey)
+my build environment: (other environment should be okey)
 - torch == 1.8.0
 - nvcc == 10.2
 
@@ -31,6 +31,8 @@ cmake .. \
 -DCMAKE_PREFIX_PATH=`python -c 'import torch;print(torch.utils.cmake_prefix_path)'` \
 -DCMAKE_CUDA_ARCHITECTURES=60 \
 -DCUDA_TOOLKIT_ROOT_DIR=$CU102_CUDA_TOOLKIT_DIR
+
+make -j8
 ```
 
 2. build with setuptools:
