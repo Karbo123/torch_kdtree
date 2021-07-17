@@ -3,8 +3,8 @@
 
 
 // make one step to search down, and update to temp
-template<int queue_max>
-__global__ void cuOneStepSearchDown(StartEndIndices* d_queue, FrontEndIndices* d_queue_frontend, 
+template<int stack_max>
+__global__ void cuOneStepSearchDown(StartEndIndices* d_stack, sint* d_stack_back, 
 									KdNode* d_kdNodes, 
 									CoordStartEndIndices* d_index_down, sint* d_num_down,
 									CoordStartEndIndices* d_index_temp, sint* d_num_temp,
@@ -37,13 +37,13 @@ __global__ void cuOneStepSearchDown(StartEndIndices* d_queue, FrontEndIndices* d
 			else d_index_temp[place_index].end_index = node_current.gtChild;
 		} else
 		{
-			// push in queue
+			// push in stack
 			StartEndIndices item;
 			refIdx_t coord_index = d_index_down[tid].coord_index;
 			item.start_index     = d_index_down[tid].start_index;
 			item.end_index       = d_index_down[tid].end_index;
-			bool success = queue_func::queue_pushback<queue_max>(d_queue, d_queue_frontend, coord_index, &item);
-			if (!success) printf("queue is full, cannot pushback anymore!");
+			bool success = stack_func::push<stack_max>(d_stack, d_stack_back, coord_index, &item);
+			if (!success) printf("stack is full, cannot push anymore!");
 		}
 	}
 }
@@ -64,7 +64,7 @@ void Gpu::SearchDown(const float* d_query)
 		const int total_num = num_to_down;
 		const int thread_num = std::min(numThreads, total_num);
 		const int block_num = int(std::ceil(total_num / float(thread_num)));
-		cuOneStepSearchDown <CUDA_QUEUE_MAX> <<<block_num, thread_num, 0, stream>>> (d_queue, d_queue_frontend, d_kdNodes, d_index_down, d_num_down, d_index_temp, d_num_temp, d_query, d_coord, numDimensions);
+		cuOneStepSearchDown <CUDA_STACK_MAX> <<<block_num, thread_num, 0, stream>>> (d_stack, d_stack_back, d_kdNodes, d_index_down, d_num_down, d_index_temp, d_num_temp, d_query, d_coord, numDimensions);
 		checkCudaErrors(cudaGetLastError());
 
 		std::swap(d_index_down, d_index_temp);

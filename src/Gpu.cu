@@ -1027,7 +1027,7 @@ Gpu* Gpu::gpuSetup(int threads, int blocks, int dim, int gpuid, cudaStream_t tor
 
 __global__ void cuInitSearch(sint num_of_points, 
                              CoordStartEndIndices* d_index_down,  refIdx_t root_index, 
-                             FrontEndIndices* d_queue_frontend)
+                             sint* d_stack_back)
 {
     const int tid = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -1035,9 +1035,8 @@ __global__ void cuInitSearch(sint num_of_points,
     {
 		d_index_down[tid].coord_index = tid;
 		d_index_down[tid].start_index = root_index;
-		d_index_down[tid].end_index = root_index;
-        d_queue_frontend[tid].front_index = -1;
-        d_queue_frontend[tid].end_index = -1;
+		d_index_down[tid].end_index   = root_index;
+        d_stack_back[tid] = -1;
     }
 }
 
@@ -1055,8 +1054,8 @@ void Gpu::InitQueryMem(sint _num_of_points, SearchType search)
 		checkCudaErrors(cudaMalloc((void**)&d_num_temp, sizeof(sint)));
 		checkCudaErrors(cudaMalloc((void**)&d_num_down, sizeof(sint)));
 		checkCudaErrors(cudaMalloc((void**)&d_num_up, sizeof(sint)));
-		checkCudaErrors(cudaMalloc((void**)&d_queue, sizeof(StartEndIndices) * _num_of_points * CUDA_QUEUE_MAX));
-		checkCudaErrors(cudaMalloc((void**)&d_queue_frontend, sizeof(FrontEndIndices) * _num_of_points));
+		checkCudaErrors(cudaMalloc((void**)&d_stack, sizeof(StartEndIndices) * _num_of_points * CUDA_STACK_MAX));
+		checkCudaErrors(cudaMalloc((void**)&d_stack_back, sizeof(sint) * _num_of_points));
 		checkCudaErrors(cudaMalloc((void**)&d_num_empty, sizeof(sint)));
 	}
 
@@ -1091,10 +1090,10 @@ void Gpu::DestroyQueryMem()
 		checkCudaErrors(cudaFree(d_num_down));
 	if (d_num_up != nullptr)
 		checkCudaErrors(cudaFree(d_num_up));
-	if (d_queue != nullptr)
-		checkCudaErrors(cudaFree(d_queue));
-	if (d_queue_frontend != nullptr)
-		checkCudaErrors(cudaFree(d_queue_frontend));
+	if (d_stack != nullptr)
+		checkCudaErrors(cudaFree(d_stack));
+	if (d_stack_back != nullptr)
+		checkCudaErrors(cudaFree(d_stack_back));
 	if (d_num_empty != nullptr)
 		checkCudaErrors(cudaFree(d_num_empty));
 }
@@ -1113,7 +1112,7 @@ void Gpu::InitSearch(sint _num_of_points, SearchType search)
 	const int total_num = num_of_points;
 	const int thread_num = std::min(numThreads, total_num);
 	const int block_num = int(std::ceil(total_num / float(thread_num)));
-	cuInitSearch<<<block_num, thread_num, 0, stream>>>(num_of_points, d_index_down, rootNode, d_queue_frontend);
+	cuInitSearch<<<block_num, thread_num, 0, stream>>>(num_of_points, d_index_down, rootNode, d_stack_back);
 	checkCudaErrors(cudaGetLastError());
 }
 

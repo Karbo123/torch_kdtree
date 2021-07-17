@@ -25,7 +25,7 @@ void TorchKDTree::_search_knn(const float* point, sint k, int64_t* out_)
     float dist_plane = std::numeric_limits<float>::max();
     refIdx_t node_bro;
 
-    // create a queue
+    // create a heap
     const auto _init_cont = std::vector<dist_node>(k, dist_node(std::numeric_limits<float>::max(), -1));
     auto heap_best = std::priority_queue<dist_node, std::vector<dist_node>, cmp_dist_node_less> (_init_cont.begin(), _init_cont.end());
     

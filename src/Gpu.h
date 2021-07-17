@@ -47,9 +47,7 @@ using namespace std;
 #include "KdNode.h"
 
 struct CoordStartEndIndices { refIdx_t coord_index; refIdx_t start_index; refIdx_t end_index; };
-struct CoordNodeIndices { refIdx_t coord_index; refIdx_t node_index; };
 struct StartEndIndices { refIdx_t start_index; refIdx_t end_index; };
-struct FrontEndIndices { refIdx_t front_index; refIdx_t end_index; };
 
 struct ResultNearest { refIdx_t best_index; float dist; }; // shape == (num_of_points, )
 
@@ -62,7 +60,7 @@ class Gpu {
 	// Gpu class constants;
 	static const uint MAX_THREADS = 1024;
 	static const uint MAX_BLOCKS = 1024;
-	static const sint CUDA_QUEUE_MAX = 512; // the assumed max size of one queue TODO NOTE @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+	static const sint CUDA_STACK_MAX = 512; // the assumed max size of one stack TODO NOTE @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 public:
 	// These are the API methods used outside the class.  They hide any details about the GPUs from the main program.
@@ -106,8 +104,8 @@ private:
 	sint* d_num_temp;
 	sint* d_num_down;
 	sint* d_num_up;
-	StartEndIndices* d_queue;
-	FrontEndIndices* d_queue_frontend;
+	StartEndIndices* d_stack;
+	sint* d_stack_back;
 	void* d_result_buffer; // buffer for saving results
 	tuple<int, int> max_allocated_size;
 	sint num_of_points; // num of query points
@@ -151,8 +149,8 @@ public:
 		d_num_temp = nullptr;
 		d_num_down = nullptr;
 		d_num_up   = nullptr;
-		d_queue = nullptr;
-		d_queue_frontend = nullptr;
+		d_stack = nullptr;
+		d_stack_back = nullptr;
 		d_result_buffer = nullptr;
 		max_allocated_size = std::make_tuple(0, 0);
 		num_of_points = 0;

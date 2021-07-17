@@ -90,7 +90,7 @@ private:
 // copy codes here
 #include "Gpu.h"
 #include "torch_kdtree_cuda_dist.h"
-#include "torch_kdtree_cuda_queue.h"
+#include "torch_kdtree_cuda_stack.h"
 #include "torch_kdtree_cuda_down.h"
 #include "torch_kdtree_cuda_nearest.h"
 

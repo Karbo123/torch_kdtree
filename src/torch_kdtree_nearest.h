@@ -14,7 +14,7 @@ void TorchKDTree::_search_nearest(const float* point, int64_t* out_)
     float dist_best  = std::numeric_limits<float>::max();
     refIdx_t node_best, node_bro;
     
-    std::stack<start_end> buffer; // stack should be simpler and faster than queue ???
+    std::stack<start_end> buffer;
     refIdx_t node_start, node_end;
     buffer.emplace(start_end(root, _search(point, root)));
 

@@ -3,8 +3,7 @@
 
 // make one step to search up, and update to temp
 template<int dim>
-__global__ void cuOneStepSearchUp_nearest(StartEndIndices* d_queue, FrontEndIndices* d_queue_frontend,
-                                          CoordStartEndIndices* d_index_up, sint* d_num_up,
+__global__ void cuOneStepSearchUp_nearest(CoordStartEndIndices* d_index_up, sint* d_num_up,
 										  CoordStartEndIndices* d_index_temp, sint* d_num_temp, // num init to zero
 										  CoordStartEndIndices* d_index_down, sint* d_num_down, // num init to zero
                                           const float* d_query, const float* d_coord, const KdNode* d_kdNodes,
@@ -62,12 +61,12 @@ void Gpu::OneStepSearchUp_nearest(const float* d_query)
 
 	sint num_up = 0;
 	checkCudaErrors(cudaMemcpyAsync(&num_up, d_num_up, sizeof(sint), cudaMemcpyDeviceToHost, stream));
-	if (num_up == 0) // empty, load from queue
+	if (num_up == 0) // empty, load from stack
 	{
 		const int total_num = num_of_points;
 		const int thread_num = std::min(numThreads, total_num);
 		const int block_num = int(std::ceil(total_num / float(thread_num)));
-		cuLoadFromQueue <CUDA_QUEUE_MAX> <<<block_num, thread_num, 0, stream>>> (d_queue, d_queue_frontend, num_of_points, d_index_up, d_num_up);
+		cuLoadFromStack <CUDA_STACK_MAX> <<<block_num, thread_num, 0, stream>>> (d_stack, d_stack_back, num_of_points, d_index_up, d_num_up);
 		checkCudaErrors(cudaGetLastError());
 		// load num to host
 		checkCudaErrors(cudaMemcpyAsync(&num_up, d_num_up, sizeof(sint), cudaMemcpyDeviceToHost, stream));
@@ -78,12 +77,11 @@ void Gpu::OneStepSearchUp_nearest(const float* d_query)
 	const int total_num = num_up;
 	const int thread_num = std::min(numThreads, total_num);
 	const int block_num = int(std::ceil(total_num / float(thread_num)));
-	cuOneStepSearchUp_nearest<dim> <<<block_num, thread_num, 0, stream>>> (d_queue, d_queue_frontend,
-																			d_index_up, d_num_up,
-																			d_index_temp, d_num_temp,
-																			d_index_down, d_num_down,
-																			d_query, d_coord, d_kdNodes,
-																			(ResultNearest*) d_result_buffer
+	cuOneStepSearchUp_nearest<dim> <<<block_num, thread_num, 0, stream>>> (d_index_up, d_num_up,
+																		   d_index_temp, d_num_temp,
+																		   d_index_down, d_num_down,
+																		   d_query, d_coord, d_kdNodes,
+																		   (ResultNearest*) d_result_buffer
 																		);
 	checkCudaErrors(cudaGetLastError());
 	std::swap(d_index_up, d_index_temp);
@@ -147,7 +145,7 @@ void Gpu::Search_nearest(const float* d_query, int64_t* index_out, const int _nu
 		// empty num
 		int num_empty = 0;
 		checkCudaErrors(cudaMemcpyAsync(d_num_empty, &num_empty, sizeof(sint), cudaMemcpyHostToDevice, stream));
-		cuEmptyNum<<<block_num, thread_num, 0, stream>>>(d_queue_frontend, num_of_points, d_num_empty);
+		cuEmptyNum<<<block_num, thread_num, 0, stream>>>(d_stack_back, num_of_points, d_num_empty);
 		checkCudaErrors(cudaGetLastError());
 		checkCudaErrors(cudaMemcpyAsync(&num_empty, d_num_empty, sizeof(sint), cudaMemcpyDeviceToHost, stream));
 		
@@ -170,7 +168,7 @@ void Gpu::Search_nearest(const float* d_query, int64_t* index_out, const int _nu
 		cout << "[DEBUG] time_sum = " << time_sum_ms << "ms" << endl;
 		____COUNTER____++;
 
-		if (num_empty == num_of_points // queue becomes empty
+		if (num_empty == num_of_points // becomes empty
 			&& num_down == 0 // no need to search down
 			&& num_up == 0 // no need to search up
 		) break; // all done
