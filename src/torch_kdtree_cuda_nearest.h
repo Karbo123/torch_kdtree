@@ -63,15 +63,25 @@ void Gpu::OneStepSearchUp_nearest(const float* d_query)
 	checkCudaErrors(cudaMemcpyAsync(&num_up, d_num_up, sizeof(sint), cudaMemcpyDeviceToHost, stream));
 	if (num_up == 0) // empty, load from stack
 	{
-		const int total_num = num_of_points;
-		const int thread_num = std::min(numThreads, total_num);
-		const int block_num = int(std::ceil(total_num / float(thread_num)));
-		cuLoadFromStack <CUDA_STACK_MAX> <<<block_num, thread_num, 0, stream>>> (d_stack, d_stack_back, num_of_points, d_index_up, d_num_up);
+		if (true)
+		{
+			// NOTE this is slow, but works
+			const int total_num = num_of_points;
+			const int thread_num = std::min(numThreads, total_num);
+			const int block_num = int(std::ceil(total_num / float(thread_num)));
+			cuLoadFromStack <CUDA_STACK_MAX> <<<block_num, thread_num, 0, stream>>> (d_stack, d_stack_back, num_of_points, d_index_up, d_num_up);
+		} else
+		{
+			// NOTE this is under dev, but not works @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+			LoadManyFromStack<CUDA_STACK_MAX>(d_stack, d_stack_back, num_of_points, num_of_points, 
+									          d_index_up, d_num_up,
+										      d_num_indi, stream);
+		}
 		checkCudaErrors(cudaGetLastError());
 		// load num to host
 		checkCudaErrors(cudaMemcpyAsync(&num_up, d_num_up, sizeof(sint), cudaMemcpyDeviceToHost, stream));
 	}
-	
+
 	// make one step to search up
 	checkCudaErrors(cudaMemcpyAsync(d_num_temp, &num_zero, sizeof(sint), cudaMemcpyHostToDevice, stream));
 	const int total_num = num_up;
@@ -144,10 +154,10 @@ void Gpu::Search_nearest(const float* d_query, int64_t* index_out, const int _nu
 
 		// empty num
 		int num_empty = 0;
-		checkCudaErrors(cudaMemcpyAsync(d_num_empty, &num_empty, sizeof(sint), cudaMemcpyHostToDevice, stream));
-		cuEmptyNum<<<block_num, thread_num, 0, stream>>>(d_stack_back, num_of_points, d_num_empty);
+		checkCudaErrors(cudaMemcpyAsync(d_num_indi, &num_empty, sizeof(sint), cudaMemcpyHostToDevice, stream));
+		cuEmptyNum<<<block_num, thread_num, 0, stream>>>(d_stack_back, num_of_points, d_num_indi);
 		checkCudaErrors(cudaGetLastError());
-		checkCudaErrors(cudaMemcpyAsync(&num_empty, d_num_empty, sizeof(sint), cudaMemcpyDeviceToHost, stream));
+		checkCudaErrors(cudaMemcpyAsync(&num_empty, d_num_indi, sizeof(sint), cudaMemcpyDeviceToHost, stream));
 		
 		// down num
 		int num_down = 0;

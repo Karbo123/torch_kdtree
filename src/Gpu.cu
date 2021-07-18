@@ -1056,7 +1056,7 @@ void Gpu::InitQueryMem(sint _num_of_points, SearchType search)
 		checkCudaErrors(cudaMalloc((void**)&d_num_up, sizeof(sint)));
 		checkCudaErrors(cudaMalloc((void**)&d_stack, sizeof(StartEndIndices) * _num_of_points * CUDA_STACK_MAX));
 		checkCudaErrors(cudaMalloc((void**)&d_stack_back, sizeof(sint) * _num_of_points));
-		checkCudaErrors(cudaMalloc((void**)&d_num_empty, sizeof(sint)));
+		checkCudaErrors(cudaMalloc((void**)&d_num_indi, sizeof(sint) * (1 + 2 * _num_of_points)));
 	}
 
 	sint requires_allocated_size = 0;
@@ -1094,8 +1094,8 @@ void Gpu::DestroyQueryMem()
 		checkCudaErrors(cudaFree(d_stack));
 	if (d_stack_back != nullptr)
 		checkCudaErrors(cudaFree(d_stack_back));
-	if (d_num_empty != nullptr)
-		checkCudaErrors(cudaFree(d_num_empty));
+	if (d_num_indi != nullptr)
+		checkCudaErrors(cudaFree(d_num_indi));
 }
 
 

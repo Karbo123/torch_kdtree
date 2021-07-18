@@ -43,7 +43,7 @@ __global__ void cuOneStepSearchDown(StartEndIndices* d_stack, sint* d_stack_back
 			item.start_index     = d_index_down[tid].start_index;
 			item.end_index       = d_index_down[tid].end_index;
 			bool success = stack_func::push<stack_max>(d_stack, d_stack_back, coord_index, &item);
-			if (!success) printf("stack is full, cannot push anymore!");
+			if (!success) printf("stack is full, cannot push anymore!\n");
 		}
 	}
 }

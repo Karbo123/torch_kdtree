@@ -60,7 +60,7 @@ class Gpu {
 	// Gpu class constants;
 	static const uint MAX_THREADS = 1024;
 	static const uint MAX_BLOCKS = 1024;
-	static const sint CUDA_STACK_MAX = 512; // the assumed max size of one stack TODO NOTE @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+	static const sint CUDA_STACK_MAX = 1024; // the assumed max size of one stack TODO NOTE @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 public:
 	// These are the API methods used outside the class.  They hide any details about the GPUs from the main program.
@@ -109,7 +109,7 @@ private:
 	void* d_result_buffer; // buffer for saving results
 	tuple<int, int> max_allocated_size;
 	sint num_of_points; // num of query points
-	sint* d_num_empty;
+	sint* d_num_indi;
 
 public:
 	// Constructor
@@ -154,7 +154,7 @@ public:
 		d_result_buffer = nullptr;
 		max_allocated_size = std::make_tuple(0, 0);
 		num_of_points = 0;
-		d_num_empty = nullptr;
+		d_num_indi = nullptr;
 
 		checkCudaErrors(cudaEventCreate(&syncEvent));
 		checkCudaErrors(cudaEventCreate(&start));
